@@ -44,17 +44,3 @@ MP2V_INLINE void inverse_alt_scan_dequant_template_sse2(__m128i (&v)[8], uint16_
     v[0] = out0;    v[1] = out1;    v[2] = out2;    v[3] = out3;
     v[4] = out4;    v[5] = out5;    v[6] = out6;    v[7] = out7;
 }
-
-/*
-// PLANE C routines
-void inverse_alt_scan_sse2(int16_t QF[64], int16_t QFS[64]) {
-    __m128i buffer[8];
-    for (int i = 0; i < 8; i++)
-        buffer[0] = _mm_loadu_si128((__m128i*) & QFS[i * 8]);
-
-    inverse_alt_scan_template_sse2(buffer);
-
-    for (int i = 0; i < 8; i++)
-        _mm_store_si128((__m128i*) & QF[i * 8], buffer[i]);
-}
-*/

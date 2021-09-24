@@ -37,32 +37,9 @@ MP2V_INLINE static void inc_macroblock_yuv_ptrs(uint8_t* (&yuv)[3][3]) {
 }
 
 template<bool use_dct_one_table>
-MP2V_INLINE static void read_first_coefficient(bitstream_reader_c* bs, uint32_t& run, int32_t& level) {
-    if (bs->get_next_bits(6) == 0b000001) {
-        bs->skip_bits(6);
-        run = bs->read_next_bits(6);
-        level = bs->read_next_bits(12);
-        if (level & 0b100000000000)
-            level |= 0xfffff000;
-    }
-    else {
-        if (bs->get_next_bits(1) == 1) {
-            int code = bs->read_next_bits(2);
-            level = (code == 2) ? 1 : -1;
-            run = 0;
-        }
-        else {
-            coeff_t c = use_dct_one_table ? get_coeff_one(bs) : get_coeff_zero(bs);
-            int s = bs->read_next_bits(1);
-            level = s ? -c.level : c.level;
-            run = c.run;
-        }
-    }
-}
-
-template<bool use_dct_one_table>
 MP2V_INLINE static void read_block_coefficients(bitstream_reader_c* bs, uint32_t& n, int16_t QFS[64]) {
     bool eob_not_read = true;
+    int16_t* qfs = &QFS[n];
     while (eob_not_read) {
         //<decode VLC, decode Escape coded coefficient if required>
         int run;
@@ -85,9 +62,8 @@ MP2V_INLINE static void read_block_coefficients(bitstream_reader_c* bs, uint32_t
                 signed_level = s ? -coeff.level : coeff.level;
             }
 
-            n += run;
-            QFS[n] = signed_level;
-            n++;
+            qfs += run;
+            *qfs++ = signed_level;
         }
         else { //<decoded VLC indicates End of block>
             if (use_dct_one_table)
@@ -137,7 +113,26 @@ static void parse_block(bitstream_reader_c* bs, int16_t(&QFS)[64], uint16_t& dct
     }
     else {
         int32_t level;
-        read_first_coefficient<use_dct_one_table>(bs, n, level);
+        if (bs->get_next_bits(6) == 0b000001) {
+            bs->skip_bits(6);
+            n = bs->read_next_bits(6);
+            level = bs->read_next_bits(12);
+            if (level & 0b100000000000)
+                level |= 0xfffff000;
+        }
+        else {
+            if (bs->get_next_bits(1) == 1) {
+                int code = bs->read_next_bits(2);
+                level = (code == 2) ? 1 : -1;
+                n = 0;
+            }
+            else {
+                coeff_t c = use_dct_one_table ? get_coeff_one(bs) : get_coeff_zero(bs);
+                int s = bs->read_next_bits(1);
+                level = s ? -c.level : c.level;
+                n = c.run;
+            }
+        }
         QFS[n] = level;
         n++;
     }

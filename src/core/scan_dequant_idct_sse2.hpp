@@ -4,9 +4,7 @@
 #include <emmintrin.h>
 #include "common/cpu.hpp"
 #include "scan_sse4.hpp"
-//#include "quant_sse2.hpp"
 #include "idct_sse2.hpp"
-#include <algorithm>
 
 template<bool intra, bool add>
 void scan_dequant_idct_template_sse2(uint8_t* plane, uint32_t stride, int16_t QF[64], uint16_t W[64], uint8_t quantizer_scale, int intra_dc_precision) {
