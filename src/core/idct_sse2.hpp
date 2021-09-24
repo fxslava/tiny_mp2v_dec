@@ -118,11 +118,3 @@ MP2V_INLINE void inverse_dct_template_sse2(uint8_t* plane, int16_t F[64], int st
         _mm_storel_epi64((__m128i*) & plane[(i * 2 + 1) * stride], _mm_srli_si128(tmp, 8));
     }
 }
-
-/*
-void inverse_dct_sse2(uint8_t* plane, int16_t F[64], int stride) {
-    inverse_dct_template_sse2<false>(plane, F, stride);
-}
-void add_inverse_dct_sse2(uint8_t* plane, int16_t F[64], int stride) {
-    inverse_dct_template_sse2<true>(plane, F, stride);
-}*/
