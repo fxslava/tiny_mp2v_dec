@@ -39,7 +39,11 @@ MP2V_INLINE __m128i mc16_func_template_nsse2(uint8_t* src, uint32_t stride) {
 template<mc_type_e mc_type>
 MP2V_INLINE void pred_mc16_template_nsse2(uint8_t* dst, uint8_t* src, uint32_t stride, int height)
 {
-    for (int j = 0; j < height; j += 4) {
+    for (int j = 0; j < height; j += 8) {
+        _mm_store_si128((__m128i*)dst, mc16_func_template_nsse2<mc_type>(src, stride)); src += stride; dst += stride;
+        _mm_store_si128((__m128i*)dst, mc16_func_template_nsse2<mc_type>(src, stride)); src += stride; dst += stride;
+        _mm_store_si128((__m128i*)dst, mc16_func_template_nsse2<mc_type>(src, stride)); src += stride; dst += stride;
+        _mm_store_si128((__m128i*)dst, mc16_func_template_nsse2<mc_type>(src, stride)); src += stride; dst += stride;
         _mm_store_si128((__m128i*)dst, mc16_func_template_nsse2<mc_type>(src, stride)); src += stride; dst += stride;
         _mm_store_si128((__m128i*)dst, mc16_func_template_nsse2<mc_type>(src, stride)); src += stride; dst += stride;
         _mm_store_si128((__m128i*)dst, mc16_func_template_nsse2<mc_type>(src, stride)); src += stride; dst += stride;
@@ -81,7 +85,11 @@ MP2V_INLINE void bidir_mc16_line_template_nsse2(uint8_t*& dst, uint8_t*& src0, u
 template<mc_type_e mc_type_src0, mc_type_e mc_type_src1>
 MP2V_INLINE void bidir_mc16_template_nsse2(uint8_t* dst, uint8_t* src0, uint8_t* src1, uint32_t stride, int height)
 {
-    for (int j = 0; j < height; j += 4) {
+    for (int j = 0; j < height; j += 8) {
+        bidir_mc16_line_template_nsse2<mc_type_src0, mc_type_src1>(dst, src0, src1, stride);
+        bidir_mc16_line_template_nsse2<mc_type_src0, mc_type_src1>(dst, src0, src1, stride);
+        bidir_mc16_line_template_nsse2<mc_type_src0, mc_type_src1>(dst, src0, src1, stride);
+        bidir_mc16_line_template_nsse2<mc_type_src0, mc_type_src1>(dst, src0, src1, stride);
         bidir_mc16_line_template_nsse2<mc_type_src0, mc_type_src1>(dst, src0, src1, stride);
         bidir_mc16_line_template_nsse2<mc_type_src0, mc_type_src1>(dst, src0, src1, stride);
         bidir_mc16_line_template_nsse2<mc_type_src0, mc_type_src1>(dst, src0, src1, stride);
