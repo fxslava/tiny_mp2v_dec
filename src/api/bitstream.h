@@ -81,8 +81,8 @@ public:
 private:
     //FILE* bitstream = nullptr;
     std::vector<uint32_t, AlignmentAllocator<uint8_t, 32>> buffer_pool;
-    uint32_t* buffer_ptr = nullptr;
-    uint32_t* buffer_end = nullptr;
-    uint64_t  buffer = 0;
-    uint32_t  buffer_idx = 64;
+    ALIGN(16) uint32_t* buffer_ptr = nullptr;
+    ALIGN(16) uint32_t* buffer_end = nullptr;
+    ALIGN(16) uint64_t  buffer = 0;
+    ALIGN(16) uint32_t  buffer_idx = 64;
 };
