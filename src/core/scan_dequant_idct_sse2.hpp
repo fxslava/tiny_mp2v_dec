@@ -7,18 +7,17 @@
 #include "idct_sse2.hpp"
 
 template<bool intra, bool add>
-void scan_dequant_idct_template_sse2(uint8_t* plane, uint32_t stride, int16_t QF0, int8_t QF[64], uint16_t W[64], uint8_t quantizer_scale, int intra_dc_precision) {
+void scan_dequant_idct_template_sse2(uint8_t* plane, uint32_t stride, int16_t QF[64], uint16_t W[64], uint8_t quantizer_scale, int intra_dc_precision) {
     ALIGN(32) __m128i buffer[8];
-    
     for (int i = 0; i < 8; i++)
-        buffer[i] = _mm_cvtepi8_epi16(_mm_loadl_epi64((__m128i*) & QF[i * 8]));
+        buffer[i] = _mm_loadu_si128((__m128i*) & QF[i * 8]);
 
     // inverse alt scan and dequant
     inverse_alt_scan_dequant_template_sse2<intra>(buffer, W, quantizer_scale);
 
     if (intra)
     {
-        int32_t res = QF0 << (3 - intra_dc_precision);
+        int32_t res = QF[0] << (3 - intra_dc_precision);
         buffer[0] = _mm_insert_epi16(buffer[0], res, 0);
     }
 
