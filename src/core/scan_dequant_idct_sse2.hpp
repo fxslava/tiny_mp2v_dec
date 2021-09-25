@@ -7,7 +7,7 @@
 #include "scan_sse4.hpp"
 #include "idct_sse2.hpp"
 
-__m128i insert_epi16(__m128i reg, int value, int pos) {
+MP2V_INLINE __m128i insert_epi16(__m128i reg, int value, int pos) {
     __m128i tmp = _mm_cvtsi32_si128((pos & 1) ? value : value << 16);
     if (pos & 2)
         tmp = _mm_bslli_si128(tmp, 2);
