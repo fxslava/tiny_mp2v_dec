@@ -61,18 +61,65 @@ MP2V_INLINE int16_t parse_dct_dc_coeff(bitstream_reader_c* bs, uint16_t& dct_dc_
     return dct_dc_pred;
 }
 
+static void parse_block_0(bitstream_reader_c* bs, int16_t* qfs) {
+    int run = 0, signed_level = 0;
+    BITSTREAM(bs);
+    UPDATE_BITS();
+    uint32_t coef = GET_NEXT_BITS(2);
+    if (coef == 2) { *qfs++ = +1; SKIP_BITS(2); }
+    if (coef == 3) { *qfs++ = -1; SKIP_BITS(2); }
+
+    while (1) {
+        UPDATE_BITS();
+        uint32_t buffer = GET_NEXT_BITS(32);
+
+        if ((buffer & 0xc0000000) == (0b10 << (32 - 2))) break; // EOB        
+        else if ((buffer & 0xfc000000) == (0b000001 << (32 - 6))) { // escape code
+            run = (buffer >> (32 - 12)) & 0x3f;
+            signed_level = (buffer >> (32 - 24)) & 0xfff;
+            if (signed_level & 0b100000000000)
+                signed_level |= 0xfffff000;
+            SKIP_BITS(24);
+        }
+        else if ((buffer & 0xf8000000) == (0b00100 << (32 - 5))) {
+            coeff_t coeff = vlc_coeff_zero_ex[(buffer >> (32 - 8)) & 7];
+            signed_level = (buffer & (0b000000001 << (31 - 9))) ? -coeff.level : coeff.level;
+            run = coeff.run;
+            SKIP_BITS(9);
+        }
+        else {
+            int nlz = bit_scan_reverse(buffer);
+            int idx = buffer >> (32 - nlz - 5);
+            vlc_lut_coeff_t coeff = vlc_coeff_zero[nlz][idx];
+            run = coeff.coeff.run;
+            signed_level = (buffer & (1 << (31 - coeff.len))) ? -coeff.coeff.level : coeff.coeff.level;
+            SKIP_BITS(coeff.len + 1);
+        }
+
+        qfs += run;
+        *qfs++ = signed_level;
+    }
+
+    SKIP_BITS(2);
+    UPDATE_BITS();
+}
+
 template<bool use_dct_one_table>
 static void parse_block(bitstream_reader_c* bs, int16_t *qfs) {
-    if (bs->get_next_bits(1) == 1 && !use_dct_one_table)
-        *qfs++ = (bs->read_next_bits(2) == 2) ? 1 : -1;
+    BITSTREAM(bs);
+
+    if (!use_dct_one_table) {
+        uint32_t coef = GET_NEXT_BITS(2);
+        if (coef == 2) { *qfs++ = +1; SKIP_BITS(2); }
+        if (coef == 3) { *qfs++ = -1; SKIP_BITS(2); }
+    }
 
     while (1) {
         int run;
         int signed_level;
-        int eob = use_dct_one_table ? bs->get_next_bits(4) : bs->get_next_bits(2);
-        int eob_code = use_dct_one_table ? 6 : 2;
+        int eob = use_dct_one_table ? GET_NEXT_BITS(4) : GET_NEXT_BITS(2);
+        if (eob == (use_dct_one_table ? 6 : 2)) break;
 
-        if (eob == eob_code) break;
         if (bs->get_next_bits(6) == 0b000001) {
             bs->skip_bits(6);
             run = bs->read_next_bits(6);
@@ -90,8 +137,8 @@ static void parse_block(bitstream_reader_c* bs, int16_t *qfs) {
         qfs += run;
         *qfs++ = signed_level;
     }
-    if (use_dct_one_table) bs->skip_bits(4);
-    else                   bs->skip_bits(2);
+    if (use_dct_one_table) SKIP_BITS(4);
+    else                   SKIP_BITS(2);
 }
 
 #if defined(__aarch64__) || defined(__arm__)
@@ -128,7 +175,10 @@ template<bool alt_scan, bool intra, bool add, bool use_dct_one_table, bool luma 
 MP2V_INLINE void decode_block_template(bitstream_reader_c* m_bs, uint8_t* plane, uint32_t stride, uint16_t W_i[64], uint16_t W[64], uint8_t quantizer_scale, uint16_t &dct_dc_pred, uint8_t intra_dc_prec) {
     ALIGN(32) int16_t QFS[64] = { 0 };
     if (intra) QFS[0] = parse_dct_dc_coeff<luma>(m_bs, dct_dc_pred);
-    parse_block<use_dct_one_table>(m_bs, &QFS[intra ? 1 : 0]);
+    if (use_dct_one_table)
+        parse_block<true>(m_bs, &QFS[intra ? 1 : 0]);
+    else
+        parse_block_0(m_bs, &QFS[intra ? 1 : 0]);
     scan_dequant_idct_template_sse2<intra, add>(plane, stride, QFS, intra ? W_i : W, quantizer_scale, intra_dc_prec);
 }
 #endif

@@ -4,6 +4,15 @@
 #include <vector>
 #include "core/common/cpu.hpp"
 
+#define BITSTREAM(bs) \
+uint32_t*& bit_ptr = bs->get_ptr(); \
+uint64_t & bit_buf = bs->get_buf(); \
+uint32_t & bit_idx = bs->get_idx(); \
+
+#define GET_NEXT_BITS(len) ((bit_buf << bit_idx) >> (64 - len))
+#define SKIP_BITS(len) bit_idx += len
+#define UPDATE_BITS() if (bit_idx >= 32) { bit_buf <<= 32; bit_buf |= (uint64_t)bswap_32(*(bit_ptr++)); bit_idx -= 32; }
+
 class bitstream_reader_c {
 private:
     MP2V_INLINE void read32() {
@@ -44,9 +53,8 @@ public:
 
     MP2V_INLINE uint32_t get_next_bits(int len) {
         update_buffer();
-        uint64_t mask = (1ll << len) - 1;
         uint64_t tmp = buffer << buffer_idx;
-        return (tmp >> (64 - len)) & mask;
+        return tmp >> (64 - len);
     }
 
     MP2V_INLINE uint32_t read_next_bits(int len) {
@@ -77,6 +85,10 @@ public:
     MP2V_INLINE void skip_bits(int len) {
         buffer_idx += len;
     }
+
+    uint32_t*& get_ptr() { return buffer_ptr; }
+    uint64_t & get_buf() { return buffer; }
+    uint32_t & get_idx() { return buffer_idx; }
 
 private:
     //FILE* bitstream = nullptr;
