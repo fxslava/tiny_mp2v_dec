@@ -223,47 +223,51 @@ MP2V_INLINE int32_t get_dct_size_chrominance_template(bitstream_reader_t* bs) {
 }
 
 template<class bitstream_reader_t>
-MP2V_INLINE coeff_t get_coeff_zero_template(bitstream_reader_t* bs) {
+MP2V_INLINE dec_coeff_t get_coeff_zero_template(bitstream_reader_t* bs) {
+    dec_coeff_t res;
     uint32_t buffer = bs->get_next_bits(32);
     if ((buffer >> (32 - 5)) == 0b00100) {
         int idx = (buffer >> (32 - 8)) & 7;
         bs->skip_bits(8);
-        return vlc_coeff_zero_ex[idx];
+        res.value = *((uint16_t*)&vlc_coeff_zero_ex[idx]);
     }
     else {
         int nlz = bit_scan_reverse(buffer);
         int idx = buffer >> (32 - nlz - 5);
-        auto& val = vlc_coeff_zero[nlz][idx];
-        bs->skip_bits(val.len);
-        return { (uint8_t)val.run, (uint8_t)val.level };
+        uint32_t val = *((uint32_t*)&vlc_coeff_zero[nlz][idx]);
+        bs->skip_bits(val >> 16);
+        res.value = val & 0xffff;
     }
+    return res;
 }
 
 template<class bitstream_reader_t>
-MP2V_INLINE coeff_t get_coeff_one_template(bitstream_reader_t* bs) {
+MP2V_INLINE dec_coeff_t get_coeff_one_template(bitstream_reader_t* bs) {
+    dec_coeff_t res;
     uint32_t buffer = bs->get_next_bits(32);
     if ((buffer >> (32 - 5)) == 0b00100) {
         int idx = (buffer >> (32 - 8)) & 7;
         bs->skip_bits(8);
-        return vlc_coeff_one_ex[idx];
+        res.value = *((uint16_t*)&vlc_coeff_one_ex[idx]);
     }
     else {
         int nlz = bit_scan_reverse(buffer);
         if (nlz > 0) {
             int idx = buffer >> (32 - nlz - 5);
-            auto& val = vlc_coeff_one0[nlz - 1][idx];
-            bs->skip_bits(val.len);
-            return { (uint8_t)val.run, (uint8_t)val.level };
+            uint32_t val = *((uint32_t*)&vlc_coeff_one0[nlz - 1][idx]);
+            bs->skip_bits(val >> 16);
+            res.value = val & 0xffff;
         }
         else
         {
             nlz = std::min<uint32_t>(bit_scan_reverse(~buffer), 8);
             int idx = (buffer >> (32 - nlz - 3)) & 7;
-            auto& val = vlc_coeff_one1[nlz - 1][idx];
-            bs->skip_bits(val.len);
-            return { (uint8_t)val.run, (uint8_t)val.level };
+            uint32_t val = *((uint32_t*)&vlc_coeff_one1[nlz - 1][idx]);
+            bs->skip_bits(val >> 16);
+            res.value = val & 0xffff;
         }
     }
+    return res;
 }
 
 #define DEFINE_CAVLC_METHODS(STREAM_READER) \
@@ -277,5 +281,5 @@ MP2V_INLINE int32_t get_motion_code(STREAM_READER* bs) { return get_motion_code_
 MP2V_INLINE int32_t get_dmvector(STREAM_READER* bs) { return get_dmvector_template(bs); } \
 MP2V_INLINE int32_t get_dct_size_luminance(STREAM_READER* bs) { return get_dct_size_luminance_template(bs); } \
 MP2V_INLINE int32_t get_dct_size_chrominance(STREAM_READER* bs) { return get_dct_size_chrominance_template(bs); } \
-MP2V_INLINE coeff_t get_coeff_zero(STREAM_READER* bs) { return get_coeff_zero_template(bs); } \
-MP2V_INLINE coeff_t get_coeff_one(STREAM_READER* bs) { return get_coeff_one_template(bs); }
+MP2V_INLINE dec_coeff_t get_coeff_zero(STREAM_READER* bs) { return get_coeff_zero_template(bs); } \
+MP2V_INLINE dec_coeff_t get_coeff_one(STREAM_READER* bs) { return get_coeff_one_template(bs); }

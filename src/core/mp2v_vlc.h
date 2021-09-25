@@ -14,8 +14,8 @@ struct macroblock_type_vlc_t {
 };
 
 struct coeff_t {
-    uint8_t run;
-    uint8_t level;
+    uint16_t run : 8;
+    uint16_t level : 8;
 };
 
 struct vlc_coeff_t {
@@ -35,9 +35,9 @@ struct vlc_lut_coeff_t {
     int32_t len : 16;
 };
 
-union vlc_dec_coeff_t {
-    vlc_lut_coeff_t coeff;
-    uint32_t value;
+union dec_coeff_t {
+    coeff_t coeff;
+    uint16_t value;
 };
 
 constexpr vlc_t    vlc_start_code = { 0x000001, 24 };

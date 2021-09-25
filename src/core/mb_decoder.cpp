@@ -81,10 +81,10 @@ static void parse_block(bitstream_reader_c* bs, int8_t *qfs) {
                 signed_level |= 0xfffff000;
         }
         else {
-            coeff_t coeff = use_dct_one_table ? get_coeff_one(bs) : get_coeff_zero(bs);
+            dec_coeff_t coeff = use_dct_one_table ? get_coeff_one(bs) : get_coeff_zero(bs);
             int s = bs->read_next_bits(1);
-            run = coeff.run;
-            signed_level = s ? -coeff.level : coeff.level;
+            run = coeff.value & 0xff;
+            signed_level = s ? -(coeff.value >> 8) : (coeff.value >> 8);
         }
 
         qfs += run;
