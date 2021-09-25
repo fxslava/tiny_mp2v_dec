@@ -3,8 +3,6 @@
 #include "mp2v_vlc.h"
 #include "mc.h"
 
-uint16_t predictor_reset_value[4] = { 128, 256, 512, 1024 };
-
 enum mc_template_e {
     mc_templ_field,
     mc_templ_frame
@@ -36,70 +34,25 @@ MP2V_INLINE static void inc_macroblock_yuv_ptrs(uint8_t* (&yuv)[3][3]) {
     inc_macroblock_yuv_ptr<chroma_format>(yuv[REF_TYPE_L1]);
 }
 
-template<bool use_dct_one_table>
-MP2V_INLINE static void read_block_coefficients(bitstream_reader_c* bs, uint32_t& n, int16_t QFS[64]) {
-    bool eob_not_read = true;
-    int16_t* qfs = &QFS[n];
-    while (eob_not_read) {
-        //<decode VLC, decode Escape coded coefficient if required>
-        int run;
-        int signed_level;
-        int eob = use_dct_one_table ? bs->get_next_bits(4) : bs->get_next_bits(2);
-        int eob_code = use_dct_one_table ? 6 : 2;
-
-        if (eob != eob_code) {
-            if (bs->get_next_bits(6) == 0b000001) {
-                bs->skip_bits(6);
-                run = bs->read_next_bits(6);
-                signed_level = bs->read_next_bits(12);
-                if (signed_level & 0b100000000000)
-                    signed_level |= 0xfffff000;
-            }
-            else {
-                coeff_t coeff = use_dct_one_table ? get_coeff_one(bs) : get_coeff_zero(bs);
-                int s = bs->read_next_bits(1);
-                run = coeff.run;
-                signed_level = s ? -coeff.level : coeff.level;
-            }
-
-            qfs += run;
-            *qfs++ = signed_level;
-        }
-        else { //<decoded VLC indicates End of block>
-            if (use_dct_one_table)
-                bs->skip_bits(4);
-            else
-                bs->skip_bits(2);
-
-            eob_not_read = 0;
-        }
-    }
-}
-
 template<bool use_dct_one_table, bool intra_block, bool luma>
 static void parse_block(bitstream_reader_c* bs, int16_t(&QFS)[64], uint16_t& dct_dc_pred) {
-    uint32_t n = 0;
-
+    auto* qfs = &QFS[0];
     memset(QFS, 0, sizeof(QFS));
     if (intra_block) {
         uint16_t dct_dc_differential;
         uint16_t dct_dc_size;
         if (luma) {
             dct_dc_size = get_dct_size_luminance(bs);
-            if (dct_dc_size != 0)
-                dct_dc_differential = bs->read_next_bits(dct_dc_size);
+            if (dct_dc_size != 0)  dct_dc_differential = bs->read_next_bits(dct_dc_size);
         }
         else {
             dct_dc_size = get_dct_size_chrominance(bs);
-            if (dct_dc_size != 0)
-                dct_dc_differential = bs->read_next_bits(dct_dc_size);
+            if (dct_dc_size != 0)  dct_dc_differential = bs->read_next_bits(dct_dc_size);
         }
-        n++;
 
         int16_t dct_diff;
-        if (dct_dc_size == 0) {
+        if (dct_dc_size == 0)
             dct_diff = 0;
-        }
         else {
             uint16_t half_range = 1 << (dct_dc_size - 1);
             if (dct_dc_differential >= half_range)
@@ -109,34 +62,38 @@ static void parse_block(bitstream_reader_c* bs, int16_t(&QFS)[64], uint16_t& dct
         }
 
         dct_dc_pred += dct_diff;
-        QFS[0] = dct_dc_pred;
+        *qfs++ = dct_dc_pred;
     }
-    else {
-        int32_t level;
+
+    if (bs->get_next_bits(1) == 1 && !use_dct_one_table)
+        *qfs++ = (bs->read_next_bits(2) == 2) ? 1 : -1;
+
+    while (1) {
+        int run;
+        int signed_level;
+        int eob = use_dct_one_table ? bs->get_next_bits(4) : bs->get_next_bits(2);
+        int eob_code = use_dct_one_table ? 6 : 2;
+
+        if (eob == eob_code) break;
         if (bs->get_next_bits(6) == 0b000001) {
             bs->skip_bits(6);
-            n = bs->read_next_bits(6);
-            level = bs->read_next_bits(12);
-            if (level & 0b100000000000)
-                level |= 0xfffff000;
+            run = bs->read_next_bits(6);
+            signed_level = bs->read_next_bits(12);
+            if (signed_level & 0b100000000000)
+                signed_level |= 0xfffff000;
         }
         else {
-            if (bs->get_next_bits(1) == 1) {
-                int code = bs->read_next_bits(2);
-                level = (code == 2) ? 1 : -1;
-                n = 0;
-            }
-            else {
-                coeff_t c = use_dct_one_table ? get_coeff_one(bs) : get_coeff_zero(bs);
-                int s = bs->read_next_bits(1);
-                level = s ? -c.level : c.level;
-                n = c.run;
-            }
+            coeff_t coeff = use_dct_one_table ? get_coeff_one(bs) : get_coeff_zero(bs);
+            int s = bs->read_next_bits(1);
+            run = coeff.run;
+            signed_level = s ? -coeff.level : coeff.level;
         }
-        QFS[n] = level;
-        n++;
+
+        qfs += run;
+        *qfs++ = signed_level;
     }
-    read_block_coefficients<use_dct_one_table>(bs, n, QFS);
+    if (use_dct_one_table) bs->skip_bits(4);
+    else                   bs->skip_bits(2);
 }
 
 #if defined(__aarch64__) || defined(__arm__)

@@ -85,7 +85,7 @@ mp2v_slice_c::mp2v_slice_c(bitstream_reader_c* bitstream, mp2v_picture_c* pic, f
     m_vertical_size_value = sh.vertical_size_value;
     m_intra_vlc_format = pcext.intra_vlc_format;
     m_block_count = m_pic->block_count;
-    m_dct_dc_pred_reset_value = predictor_reset_value[pcext.intra_dc_precision];
+    m_dct_dc_pred_reset_value = 1 << (pcext.intra_dc_precision + 7);
 
     // if picture spatial scalable extension exist then store temporal weight code table index
     if (pssext)

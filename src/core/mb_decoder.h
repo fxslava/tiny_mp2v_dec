@@ -27,8 +27,6 @@ struct macroblock_context_cache_t {
 #endif
 };
 
-extern uint16_t predictor_reset_value[4];
-
 typedef bool (*parse_macroblock_func_t)(bitstream_reader_c* m_bs, macroblock_context_cache_t &cache);
 
 parse_macroblock_func_t select_parse_macroblock_func(uint8_t picture_coding_type, uint8_t picture_structure, uint8_t frame_pred_frame_dct, uint8_t concealment_motion_vectors, uint8_t chroma_format, bool q_scale_type, bool alt_scan);
