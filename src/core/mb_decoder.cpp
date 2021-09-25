@@ -33,38 +33,36 @@ MP2V_INLINE static void inc_macroblock_yuv_ptrs(uint8_t* (&yuv)[3][3]) {
     inc_macroblock_yuv_ptr<chroma_format>(yuv[REF_TYPE_L0]);
     inc_macroblock_yuv_ptr<chroma_format>(yuv[REF_TYPE_L1]);
 }
-
-template<bool use_dct_one_table, bool intra_block, bool luma>
-static void parse_block(bitstream_reader_c* bs, int16_t(&QFS)[64], uint16_t& dct_dc_pred) {
-    auto* qfs = &QFS[0];
-    memset(QFS, 0, sizeof(QFS));
-    if (intra_block) {
-        uint16_t dct_dc_differential;
-        uint16_t dct_dc_size;
-        if (luma) {
-            dct_dc_size = get_dct_size_luminance(bs);
-            if (dct_dc_size != 0)  dct_dc_differential = bs->read_next_bits(dct_dc_size);
-        }
-        else {
-            dct_dc_size = get_dct_size_chrominance(bs);
-            if (dct_dc_size != 0)  dct_dc_differential = bs->read_next_bits(dct_dc_size);
-        }
-
-        int16_t dct_diff;
-        if (dct_dc_size == 0)
-            dct_diff = 0;
-        else {
-            uint16_t half_range = 1 << (dct_dc_size - 1);
-            if (dct_dc_differential >= half_range)
-                dct_diff = dct_dc_differential;
-            else
-                dct_diff = (dct_dc_differential + 1) - (2 * half_range);
-        }
-
-        dct_dc_pred += dct_diff;
-        *qfs++ = dct_dc_pred;
+template<bool luma>
+MP2V_INLINE int16_t parse_dct_dc_coeff(bitstream_reader_c* bs, uint16_t& dct_dc_pred) {
+    uint16_t dct_dc_differential;
+    uint16_t dct_dc_size;
+    if (luma) {
+        dct_dc_size = get_dct_size_luminance(bs);
+        if (dct_dc_size != 0)  dct_dc_differential = bs->read_next_bits(dct_dc_size);
+    }
+    else {
+        dct_dc_size = get_dct_size_chrominance(bs);
+        if (dct_dc_size != 0)  dct_dc_differential = bs->read_next_bits(dct_dc_size);
     }
 
+    int16_t dct_diff;
+    if (dct_dc_size == 0)
+        dct_diff = 0;
+    else {
+        uint16_t half_range = 1 << (dct_dc_size - 1);
+        if (dct_dc_differential >= half_range)
+            dct_diff = dct_dc_differential;
+        else
+            dct_diff = (dct_dc_differential + 1) - (2 * half_range);
+    }
+
+    dct_dc_pred += dct_diff;
+    return dct_dc_pred;
+}
+
+template<bool use_dct_one_table>
+static void parse_block(bitstream_reader_c* bs, int16_t *qfs) {
     if (bs->get_next_bits(1) == 1 && !use_dct_one_table)
         *qfs++ = (bs->read_next_bits(2) == 2) ? 1 : -1;
 
@@ -128,8 +126,9 @@ MP2V_INLINE void decode_block_template(pixel_t* plane, uint32_t stride, int16_t 
 #include "scan_dequant_idct_sse2.hpp"
 template<bool alt_scan, bool intra, bool add, bool use_dct_one_table, bool luma = false>
 MP2V_INLINE void decode_block_template(bitstream_reader_c* m_bs, uint8_t* plane, uint32_t stride, uint16_t W_i[64], uint16_t W[64], uint8_t quantizer_scale, uint16_t &dct_dc_pred, uint8_t intra_dc_prec) {
-    ALIGN(32) int16_t QFS[64];
-    parse_block<use_dct_one_table, intra, luma>(m_bs, QFS, dct_dc_pred);
+    ALIGN(32) int16_t QFS[64] = { 0 };
+    if (intra) QFS[0] = parse_dct_dc_coeff<luma>(m_bs, dct_dc_pred);
+    parse_block<use_dct_one_table>(m_bs, &QFS[intra ? 1 : 0]);
     scan_dequant_idct_template_sse2<intra, add>(plane, stride, QFS, intra ? W_i : W, quantizer_scale, intra_dc_prec);
 }
 #endif
