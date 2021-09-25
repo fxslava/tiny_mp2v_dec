@@ -17,9 +17,7 @@ class bitstream_reader_c {
 private:
     MP2V_INLINE void read32() {
         buffer <<= 32;
-        uint32_t tmp = *buffer_ptr;
-        buffer_ptr++;
-        buffer |= (uint64_t)bswap_32(tmp);
+        buffer |= (uint64_t)bswap_32(*(buffer_ptr++));
         buffer_idx -= 32;
     }
 
