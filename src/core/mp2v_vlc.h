@@ -30,8 +30,14 @@ struct vlc_value_t {
 };
 
 struct vlc_lut_coeff_t {
-    int16_t len;
-    coeff_t coeff;
+    int32_t run : 8;
+    int32_t level : 8;
+    int32_t len : 16;
+};
+
+union vlc_dec_coeff_t {
+    vlc_lut_coeff_t coeff;
+    uint32_t value;
 };
 
 constexpr vlc_t    vlc_start_code = { 0x000001, 24 };

@@ -62,7 +62,7 @@ MP2V_INLINE int16_t parse_dct_dc_coeff(bitstream_reader_c* bs, uint16_t& dct_dc_
 }
 
 template<bool use_dct_one_table>
-static void parse_block(bitstream_reader_c* bs, int16_t *qfs) {
+static void parse_block(bitstream_reader_c* bs, int8_t *qfs) {
     if (bs->get_next_bits(1) == 1 && !use_dct_one_table)
         *qfs++ = (bs->read_next_bits(2) == 2) ? 1 : -1;
 
@@ -126,10 +126,11 @@ MP2V_INLINE void decode_block_template(pixel_t* plane, uint32_t stride, int16_t 
 #include "scan_dequant_idct_sse2.hpp"
 template<bool alt_scan, bool intra, bool add, bool use_dct_one_table, bool luma = false>
 MP2V_INLINE void decode_block_template(bitstream_reader_c* m_bs, uint8_t* plane, uint32_t stride, uint16_t W_i[64], uint16_t W[64], uint8_t quantizer_scale, uint16_t &dct_dc_pred, uint8_t intra_dc_prec) {
-    ALIGN(32) int16_t QFS[64] = { 0 };
-    if (intra) QFS[0] = parse_dct_dc_coeff<luma>(m_bs, dct_dc_pred);
+    ALIGN(32) int8_t QFS[64] = { 0 };
+    int16_t QFS0 = 0;
+    if (intra) QFS0 = parse_dct_dc_coeff<luma>(m_bs, dct_dc_pred);
     parse_block<use_dct_one_table>(m_bs, &QFS[intra ? 1 : 0]);
-    scan_dequant_idct_template_sse2<intra, add>(plane, stride, QFS, intra ? W_i : W, quantizer_scale, intra_dc_prec);
+    scan_dequant_idct_template_sse2<intra, add>(plane, stride, QFS0, QFS, intra ? W_i : W, quantizer_scale, intra_dc_prec);
 }
 #endif
 
