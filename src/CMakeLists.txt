@@ -18,7 +18,6 @@ file(
         ./core/mp2v_vlc.cpp
         ./core/mp2v_hdr.cpp
         ./core/scan_c.cpp
-        ./core/idct_c.cpp
         ./core/mc.cpp
 )
 

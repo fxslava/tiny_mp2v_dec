@@ -2,11 +2,7 @@
 #include <stdint.h>
 #include <algorithm>
 #include <math.h>
-#include "idct.h"
-
-#if defined(_M_X64) || defined(_M_IX86)
-#include "idct_sse2.hpp"
-#endif
+#include "common/cpu.hpp"
 
 constexpr double s1[5] = {
     0.707106781186547524400844,
@@ -17,7 +13,7 @@ constexpr double s1[5] = {
 };
 
 template<typename src_t, typename dst_t>
-void idct_1d(dst_t dst[8], src_t *src) {
+MP2V_INLINE void idct_1d(dst_t dst[8], src_t *src) {
     const double v15 = static_cast<double>(src[0]) / 0.353553390593273762200422;
     const double v26 = static_cast<double>(src[1]) / 0.254897789552079584470970;
     const double v21 = static_cast<double>(src[2]) / 0.270598050073098492199862;
@@ -59,8 +55,8 @@ void idct_1d(dst_t dst[8], src_t *src) {
     dst[7] = static_cast<dst_t>((v0 - v7) / 2);
 }
 
-template<typename dst_t, typename src_t, bool add>
-void inverse_dct_template(dst_t* plane, int16_t F[64], int stride) {
+template<bool add>
+MP2V_INLINE void inverse_dct_template(uint8_t* plane, int16_t F[64], int stride) {
     double tmp0[8][8];
     double tmp1[8][8];
 
@@ -78,14 +74,7 @@ void inverse_dct_template(dst_t* plane, int16_t F[64], int stride) {
     //transpose store
     for (int j = 0; j < 8; j++)
         for (int i = 0; i < 8; i++) {
-            int res = add ? (int)tmp0[i][j] + (int)plane[j * stride + i] : (int)tmp0[i][j];
-            plane[j * stride + i] = (dst_t)(std::max(std::min(res, 255), 0));
+            int res = add ? (int)tmp0[j][i] + (int)plane[j * stride + i] : (int)tmp0[j][i];
+            plane[j * stride + i] = (uint8_t)(std::max(std::min(res, 255), 0));
         }
-}
-
-void inverse_dct_c(uint8_t* plane, int16_t F[64], int stride) {
-    inverse_dct_template<uint8_t, uint8_t, false>(plane, F, stride);
-}
-void add_inverse_dct_c(uint8_t* plane, int16_t F[64], int stride) {
-    inverse_dct_template<uint8_t, uint8_t, true>(plane, F, stride);
 }

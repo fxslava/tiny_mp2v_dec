@@ -142,33 +142,14 @@ static void parse_block(bitstream_reader_c* bs, int16_t* qfs, uint16_t W[64], ui
     UPDATE_BITS();
 }
 
-#if defined(__aarch64__) || defined(__arm__)
-#include "scan.h"
-#include "idct.h"
-#include "quant_c.hpp"
-
-template<typename pixel_t, bool alt_scan, bool intra, bool add>
-MP2V_INLINE void decode_block_template(pixel_t* plane, uint32_t stride, int16_t QFS[64], uint16_t W_i[64], uint16_t W[64], uint8_t quantizer_scale, int intra_dc_prec) {
-    int16_t QF[64];
-    int16_t F[64];
-
-    // inverse scan
-    if (alt_scan)
-        inverse_alt_scan_c(QF, QFS);
-    else
-        inverse_scan_c(QF, QFS);
-
-    // dequantization
-    if (!intra)
-        inverse_quant_c(F, QF, W, quantizer_scale);
-    else
-        inverse_quant_intra_c(F, QF, W_i, quantizer_scale, intra_dc_prec);
-
-    //idct
-    if (add)
-        add_inverse_dct_c(plane, F, stride); 
-    else
-        inverse_dct_c(plane, F, stride);
+#if 1//defined(__aarch64__) || defined(__arm__)
+#include "idct_c.hpp"
+template<bool alt_scan, bool intra, bool add, bool use_dct_one_table, bool luma = false>
+MP2V_INLINE void decode_block_template(bitstream_reader_c* m_bs, uint8_t* plane, uint32_t stride, uint16_t W_i[64], uint16_t W[64], uint8_t quantizer_scale, uint16_t& dct_dc_pred, uint8_t intra_dc_prec) {
+    ALIGN(32) int16_t QFS[64] = { 0 };
+    if (intra) QFS[0] = parse_dct_dc_coeff<luma>(m_bs, dct_dc_pred, intra_dc_prec);
+    parse_block<use_dct_one_table, intra, alt_scan>(m_bs, QFS, intra ? W_i : W, quantizer_scale);
+    inverse_dct_template<add>(plane, QFS, stride);
 }
 #else
 #include "idct_sse2.hpp"
