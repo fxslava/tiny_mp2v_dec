@@ -8,9 +8,6 @@
 
 #define CHECK(p) { if (!(p)) return false; }
 
-//[chroma_format]
-uint32_t block_count_tbl[4] = { 0 /*invalid chroma format*/, 6, 8, 12 };
-
 struct spatial_temporal_weights_classes_t {
     uint8_t spatial_temporal_weight_fract[2]; // 0 - 0.0, 1 - 0.5, 2 - 1.0
     uint8_t spatial_temporal_weight_class;
@@ -84,7 +81,6 @@ mp2v_slice_c::mp2v_slice_c(bitstream_reader_c* bitstream, mp2v_picture_c* pic, f
     m_chroma_format = se.chroma_format;
     m_vertical_size_value = sh.vertical_size_value;
     m_intra_vlc_format = pcext.intra_vlc_format;
-    m_block_count = m_pic->block_count;
     m_dct_dc_pred_reset_value = 1 << (pcext.intra_dc_precision + 7);
 
     // if picture spatial scalable extension exist then store temporal weight code table index
@@ -353,7 +349,6 @@ bool mp2v_decoder_c::decode_picture_data() {
 
     /* Decode sequence parameters*/
     mp2v_picture_c pic(m_bs, this, frame);
-    pic.block_count = block_count_tbl[m_sequence_extension.chroma_format];
 
     parse_picture_header(m_bs, pic.m_picture_header);
     parse_picture_coding_extension(m_bs, pic.m_picture_coding_extension);

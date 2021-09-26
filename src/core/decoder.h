@@ -61,7 +61,6 @@ private:
     uint32_t m_concealment_motion_vectors = 0;
     uint16_t m_dct_dc_pred_reset_value = 0;
     uint16_t m_dct_dc_pred[3] = { 0 };
-    uint16_t m_block_count = 0;
     bitstream_reader_c* m_bs = nullptr;
     mp2v_picture_c* m_pic = nullptr;
     frame_c* m_frame;
@@ -95,7 +94,6 @@ public:
     picture_display_extension_t* m_picture_display_extension = nullptr;
     picture_spatial_scalable_extension_t* m_picture_spatial_scalable_extension = nullptr;
     picture_temporal_scalable_extension_t* m_picture_temporal_scalable_extension = nullptr;
-    int block_count = 0;
 
 #ifdef _DEBUG
     std::vector<mp2v_slice_c> m_slices;
@@ -140,5 +138,3 @@ public:
     sequence_scalable_extension_t* m_sequence_scalable_extension = nullptr;
     group_of_pictures_header_t* m_group_of_pictures_header = nullptr;
 };
-
-extern uint32_t block_count_tbl[4];
