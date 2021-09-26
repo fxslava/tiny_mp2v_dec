@@ -14,5 +14,5 @@ MP2V_INLINE void inverse_alt_scan_c(int16_t QF[64], int16_t QFS[64]) {
 
 MP2V_INLINE void inverse_scan_c(int16_t QF[64], int16_t QFS[64]) {
     for (int i = 0; i < 64; i++)
-        QF[i] = QFS[g_scan[0][i]];
+        QF[g_scan[0][i]] = QFS[i];
 }
