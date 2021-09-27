@@ -18,11 +18,11 @@ void stream_writer_func(mp2v_decoder_c* mp2v_decoder, std::string output_file) {
     mp2v_decoder->get_decoded_frame(frame);
 
     while (frame) {
-        for (int i = 0; i < 3; i++) {
+        /*for (int i = 0; i < 3; i++) {
             uint8_t* plane = frame->get_planes(i);
             for (int y = 0; y < frame->get_height(i); y++, plane += frame->get_strides(i))
                 fwrite(plane, 1, frame->get_width(i), fp);
-        }
+        }*/
 
         mp2v_decoder->release_frame(frame);
         mp2v_decoder->get_decoded_frame(frame);
@@ -49,6 +49,17 @@ int main(int argc, char* argv[])
 
     if (bitstream_file) {
         bitstream_reader_c stream_reader(*bitstream_file);
+        const auto sct_start = std::chrono::system_clock::now();
+        stream_reader.generate_start_codes_tbl_c();
+        const auto sct_mid = std::chrono::system_clock::now();
+        stream_reader.generate_start_codes_tbl();
+        const auto sct_end = std::chrono::system_clock::now();
+
+        auto sct_c_elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(sct_mid - sct_start);
+        printf("Start code generation (PLANE C) time = %.2f ms\n", static_cast<double>(sct_c_elapsed_ms.count()));
+        auto sct_elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(sct_end - sct_mid);
+        printf("Start code generation (SSE4.1) time = %.2f ms\n", static_cast<double>(sct_elapsed_ms.count()));
+
         mp2v_decoder_c mp2v_decoder(&stream_reader);
 
         std::thread stream_writer(stream_writer_func, &mp2v_decoder, *output_file);
