@@ -4,30 +4,6 @@
 #include <emmintrin.h>
 #include "common/cpu.hpp"
 
-class hnnz_mask {
-public:
-    static const uint64_t m0 = 0x00000000000000FF;
-    static const uint64_t m1 = 0x000000000000FF00;
-    static const uint64_t m2 = 0x0000000000FF0000;
-    static const uint64_t m3 = 0x00000000FF000000;
-    static const uint64_t m4 = 0x000000FF00000000;
-    static const uint64_t m5 = 0x0000FF0000000000;
-    static const uint64_t m6 = 0x00FF000000000000;
-    static const uint64_t m7 = 0xFF00000000000000;
-};
-
-class vnnz_mask {
-public:
-    static const uint64_t m0 = 0x0101010101010101;
-    static const uint64_t m1 = 0x0202020202020202;
-    static const uint64_t m2 = 0x0404040404040404;
-    static const uint64_t m3 = 0x0808080808080808;
-    static const uint64_t m4 = 0x1010101010101010;
-    static const uint64_t m5 = 0x2020202020202020;
-    static const uint64_t m6 = 0x4040404040404040;
-    static const uint64_t m7 = 0x8080808080808080;
-};
-
 MP2V_INLINE __m128i _mm_tmp_op0_epi16(__m128i src) { // src / 0.707106781186547524400844 : S1[0], S[2]
     return _mm_adds_epi16(src, _mm_mulhi_epi16(src, _mm_set1_epi16(27145)));
 }
@@ -44,17 +20,16 @@ MP2V_INLINE __m128i _mm_tmp_op4_epi16(__m128i src) { // src * 0.3826834323650897
     return _mm_mulhi_epi16(src, _mm_set1_epi16(25079));
 }
 
-template<class nnz_mask, bool NZ = false>
-MP2V_INLINE void idct_1d_sse2(__m128i (&src)[8], uint64_t nnz) {
+MP2V_INLINE void idct_1d_sse2(__m128i (&src)[8]) {
     // step 0
-    const __m128i v15 = (!(nnz_mask::m0 & nnz) && NZ) ? _mm_setzero_si128() : _mm_adds_epi16(_mm_slli_epi16(_mm_mulhi_epi16(src[0], _mm_set1_epi16(27145)), 1), _mm_slli_epi16(src[0], 1));
-    const __m128i v26 = (!(nnz_mask::m1 & nnz) && NZ) ? _mm_setzero_si128() : _mm_adds_epi16(_mm_mulhi_epi16(src[1], _mm_set1_epi16(-5037)), _mm_slli_epi16(src[1], 2));
-    const __m128i v21 = (!(nnz_mask::m2 & nnz) && NZ) ? _mm_setzero_si128() : _mm_adds_epi16(_mm_mulhi_epi16(src[2], _mm_set1_epi16(-19954)), _mm_slli_epi16(src[2], 2));
-    const __m128i v28 = (!(nnz_mask::m3 & nnz) && NZ) ? _mm_setzero_si128() : _mm_adds_epi16(_mm_slli_epi16(_mm_mulhi_epi16(src[3], _mm_set1_epi16(-22089)), 1), _mm_slli_epi16(src[3], 2));
-    const __m128i v16 = (!(nnz_mask::m4 & nnz) && NZ) ? _mm_setzero_si128() : _mm_adds_epi16(_mm_slli_epi16(_mm_mulhi_epi16(src[4], _mm_set1_epi16(27145)), 1), _mm_slli_epi16(src[4], 1));
-    const __m128i v25 = (!(nnz_mask::m5 & nnz) && NZ) ? _mm_setzero_si128() : _mm_adds_epi16(_mm_mulhi_epi16(src[5], _mm_set1_epi16(14567)), _mm_slli_epi16(src[5], 1));
-    const __m128i v22 = (!(nnz_mask::m6 & nnz) && NZ) ? _mm_setzero_si128() : _mm_adds_epi16(_mm_slli_epi16(_mm_mulhi_epi16(src[6], _mm_set1_epi16(17391)), 1), src[6]);
-    const __m128i v27 = (!(nnz_mask::m7 & nnz) && NZ) ? _mm_setzero_si128() : _mm_slli_epi16(_mm_mulhi_epi16(src[7], _mm_set1_epi16(25570)), 1);
+    const __m128i v15 = _mm_adds_epi16(_mm_slli_epi16(_mm_mulhi_epi16(src[0], _mm_set1_epi16(27145)), 1), _mm_slli_epi16(src[0], 1));
+    const __m128i v26 = _mm_adds_epi16(_mm_mulhi_epi16(src[1], _mm_set1_epi16(-5037)), _mm_slli_epi16(src[1], 2));
+    const __m128i v21 = _mm_adds_epi16(_mm_mulhi_epi16(src[2], _mm_set1_epi16(-19954)), _mm_slli_epi16(src[2], 2));
+    const __m128i v28 = _mm_adds_epi16(_mm_slli_epi16(_mm_mulhi_epi16(src[3], _mm_set1_epi16(-22089)), 1), _mm_slli_epi16(src[3], 2));
+    const __m128i v16 = _mm_adds_epi16(_mm_slli_epi16(_mm_mulhi_epi16(src[4], _mm_set1_epi16(27145)), 1), _mm_slli_epi16(src[4], 1));
+    const __m128i v25 = _mm_adds_epi16(_mm_mulhi_epi16(src[5], _mm_set1_epi16(14567)), _mm_slli_epi16(src[5], 1));
+    const __m128i v22 = _mm_adds_epi16(_mm_slli_epi16(_mm_mulhi_epi16(src[6], _mm_set1_epi16(17391)), 1), src[6]);
+    const __m128i v27 = _mm_slli_epi16(_mm_mulhi_epi16(src[7], _mm_set1_epi16(25570)), 1);
     // step 1
     const __m128i v19 = _mm_subs_epi16(v25, v28); // /2
     const __m128i v20 = _mm_subs_epi16(v26, v27); // /2
@@ -119,14 +94,14 @@ MP2V_INLINE void transpose_8x8_sse2(__m128i (&src)[8]) {
 }
 
 template<bool add>
-void inverse_dct_template(uint8_t* plane, int16_t F[64], int stride, uint64_t nnz) {
+void inverse_dct_template_sse2(uint8_t* plane, int16_t F[64], int stride) {
     __m128i buffer[8];
     for (int i = 0; i < 8; i++)
         buffer[i] = _mm_load_si128((__m128i*) & F[i*8]);
 
-    idct_1d_sse2<hnnz_mask, true>(buffer, nnz);
+    idct_1d_sse2(buffer);
     transpose_8x8_sse2(buffer);
-    idct_1d_sse2<vnnz_mask>(buffer, nnz);
+    idct_1d_sse2(buffer);
 
     for (int i = 0; i < 4; i++) {
         __m128i tmp, b0, b1;
