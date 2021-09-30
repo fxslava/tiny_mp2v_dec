@@ -50,13 +50,23 @@ frame_c::frame_c(int width, int height, int chroma_format) {
     m_width [2] = m_width [1];
     m_height[2] = m_height[1];
 
+#if defined(_MSC_VER)
     for (int i = 0; i < 3; i++)
         m_planes[i] = (uint8_t*)_aligned_malloc(m_height[i] * m_stride[i], 32);
+#else
+    for (int i = 0; i < 3; i++)
+        m_planes[i] = (uint8_t*)aligned_alloc(32, m_height[i] * m_stride[i]);
+#endif
 }
 
 frame_c::~frame_c() {
+#if defined(_MSC_VER)
     for (int i = 0; i < 3; i++)
         if (m_planes[i]) _aligned_free(m_planes[i]);
+#else
+    for (int i = 0; i < 3; i++)
+        if (m_planes[i]) free(m_planes[i]);
+#endif
 }
 
 static void make_macroblock_yuv_ptrs(uint8_t* (&yuv)[3], frame_c* frame, int mb_row, int stride, int chroma_stride, int chroma_format) {

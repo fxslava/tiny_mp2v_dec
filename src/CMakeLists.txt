@@ -29,7 +29,7 @@ if(WIN32)
 elseif(UNIX)
     set(
         CMAKE_C_FLAGS
-            "${CMAKE_C_FLAGS} -msse2 -Ofast -g0 -Wall"
+            "${CMAKE_C_FLAGS} -msse2 -Ofast -g0 -Wall -marm"
     )
 endif()
 

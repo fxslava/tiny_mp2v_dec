@@ -120,6 +120,30 @@ private:
             }
         }
     }
+#elsif defined(__aarch64__) || defined(__arm__)
+#include "arm_neon.h"
+    void generate_start_codes_tbl() {
+
+        template<int i> void gen_1 () { if (vgetq_lane_u8(mask, i)) start_code_tbl.push_back((uint32_t*)(ptr + i)); }
+        template<int i> void gen_2 () { gen_1<i>(); gen_1<i + 1>(); }
+        template<int i> void gen_4 () { gen_2<i>(); gen_2<i + 2>(); }
+        template<int i> void gen_8 () { gen_4<i>(); gen_4<i + 4>(); }
+        void gen_16() { gen_8<0>(); gen_8<8>(); }
+
+        static const uint8x16_t pattern_0 = vdupq_n_u8(0);
+        static const uint8x16_t pattern_1 = vdupq_n_u8(1);
+        static const uint8x8_t  half      = vdup_n_u8(0x0f);
+    
+        for (int i = 0; i < buffer_pool.size(); i += 4) {
+            uint8_t* ptr = (uint8_t*)&buffer_pool[i];
+
+            const uint8x16_t tmp0 = vceqq_u8(vld1q_u8(ptr + 0), pattern_0);
+            const uint8x16_t tmp1 = vceqq_u8(vld1q_u8(ptr + 1), pattern_0);
+            const uint8x16_t tmp2 = vceqq_u8(vld1q_u8(ptr + 2), pattern_1);
+            const uint8x16_t mask = vandq_u8(vandq_u8(tmp0, tmp1), tmp2);
+            gen_16();
+        }
+    }
 #else
     void generate_start_codes_tbl() {
         auto buf_start = (uint8_t*)buffer_ptr;

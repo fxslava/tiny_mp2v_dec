@@ -1,4 +1,5 @@
 // Copyright � 2021 Vladislav Ovchinnikov. All rights reserved.
+#include <string.h>
 #include "mb_decoder.h"
 #include "mp2v_vlc.h"
 #include "mc.h"
