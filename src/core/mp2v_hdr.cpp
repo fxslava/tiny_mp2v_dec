@@ -17,12 +17,10 @@ bool parse_sequence_header(bitstream_reader_c* m_bs, sequence_header_t &sh) {
     sh.load_non_intra_quantiser_matrix = m_bs->read_next_bits(1);
     if (sh.load_non_intra_quantiser_matrix)
         local_copy_array<uint8_t, 64>(m_bs, sh.non_intra_quantiser_matrix);
-    local_find_start_code(m_bs);
     return true;
 }
 
 bool parse_sequence_extension(bitstream_reader_c* m_bs, sequence_extension_t &sext) {
-    sext.extension_start_code = m_bs->read_next_bits(32);
     sext.extension_start_code_identifier = m_bs->read_next_bits(4);
     sext.profile_and_level_indication = m_bs->read_next_bits(8);
     sext.progressive_sequence = m_bs->read_next_bits(1);
@@ -35,7 +33,6 @@ bool parse_sequence_extension(bitstream_reader_c* m_bs, sequence_extension_t &se
     sext.low_delay = m_bs->read_next_bits(1);
     sext.frame_rate_extension_n = m_bs->read_next_bits(2);
     sext.frame_rate_extension_d = m_bs->read_next_bits(5);
-    local_find_start_code(m_bs);
     return true;
 }
 
@@ -51,7 +48,6 @@ bool parse_sequence_display_extension(bitstream_reader_c* m_bs, sequence_display
     sdext.display_horizontal_size = m_bs->read_next_bits(14);
     m_bs->skip_bits(1);
     sdext.display_vertical_size = m_bs->read_next_bits(14);
-    local_find_start_code(m_bs);
     return true;
 }
 
@@ -75,7 +71,6 @@ bool parse_sequence_scalable_extension(bitstream_reader_c* m_bs, sequence_scalab
         ssext.picture_mux_order = m_bs->read_next_bits(3);
         ssext.picture_mux_factor = m_bs->read_next_bits(3);
     }
-    local_find_start_code(m_bs);
     return true;
 }
 
@@ -84,7 +79,6 @@ bool parse_group_of_pictures_header(bitstream_reader_c* m_bs, group_of_pictures_
     gph.time_code = m_bs->read_next_bits(25);
     gph.closed_gop = m_bs->read_next_bits(1);
     gph.broken_link = m_bs->read_next_bits(1);
-    local_find_start_code(m_bs);
     return true;
 }
 
@@ -105,13 +99,10 @@ bool parse_picture_header(bitstream_reader_c* m_bs, picture_header_t & ph) {
     while (m_bs->get_next_bits(1) == 1)
         m_bs->skip_bits(9); // skip extra_bit_picture and extra_information_picture
     m_bs->skip_bits(1); // skip extra_bit_picture
-
-    local_find_start_code(m_bs);
     return true;
 }
 
 bool parse_picture_coding_extension(bitstream_reader_c* m_bs, picture_coding_extension_t &pcext) {
-    pcext.extension_start_code = m_bs->read_next_bits(32);
     pcext.extension_start_code_identifier = m_bs->read_next_bits(4);
     pcext.f_code[0][0] = m_bs->read_next_bits(4);
     pcext.f_code[0][1] = m_bs->read_next_bits(4);
@@ -136,7 +127,6 @@ bool parse_picture_coding_extension(bitstream_reader_c* m_bs, picture_coding_ext
         pcext.burst_amplitude = m_bs->read_next_bits(7);
         pcext.sub_carrier_phase = m_bs->read_next_bits(8);
     }
-    local_find_start_code(m_bs);
     return true;
 }
 
@@ -158,7 +148,6 @@ bool parse_quant_matrix_extension(bitstream_reader_c* m_bs, quant_matrix_extensi
     if (qmext.load_chroma_non_intra_quantiser_matrix)
         local_copy_array<uint8_t, 64>(m_bs, qmext.chroma_non_intra_quantiser_matrix);
         //local_load_quantiser_matrix(m_bs, qmext.chroma_non_intra_quantiser_matrix);
-    local_find_start_code(m_bs);
     return true;
 }
 
@@ -194,7 +183,6 @@ bool parse_picture_display_extension(bitstream_reader_c* m_bs, picture_display_e
         pdext.frame_centre_vertical_offset[i] = m_bs->read_next_bits(16);
         m_bs->skip_bits(1);
     }
-    local_find_start_code(m_bs);
     return true;
 }
 
@@ -204,7 +192,6 @@ bool parse_picture_temporal_scalable_extension(bitstream_reader_c* m_bs, picture
     ptsext.forward_temporal_reference = m_bs->read_next_bits(10);
     m_bs->skip_bits(1);
     ptsext.backward_temporal_reference = m_bs->read_next_bits(10);
-    local_find_start_code(m_bs);
     return true;
 }
 bool parse_picture_spatial_scalable_extension(bitstream_reader_c* m_bs, picture_spatial_scalable_extension_t& pssext) {
@@ -217,7 +204,6 @@ bool parse_picture_spatial_scalable_extension(bitstream_reader_c* m_bs, picture_
     pssext.spatial_temporal_weight_code_table_index = m_bs->read_next_bits(2);
     pssext.lower_layer_progressive_frame = m_bs->read_next_bits(1);
     pssext.lower_layer_deinterlaced_field_select = m_bs->read_next_bits(1);
-    local_find_start_code(m_bs);
     return true;
 }
 
@@ -233,6 +219,5 @@ bool parse_copyright_extension(bitstream_reader_c* m_bs, copyright_extension_t& 
     crext.copyright_number_2 = m_bs->read_next_bits(22);
     m_bs->skip_bits(1);
     crext.copyright_number_3 = m_bs->read_next_bits(22);
-    local_find_start_code(m_bs);
     return true;
 }

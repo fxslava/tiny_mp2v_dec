@@ -46,47 +46,11 @@ public:
         // read file
         fp.read((char*)buffer_ptr, size);
         fp.close();
+
+        generate_start_codes_tbl();
     }
 
     ~bitstream_reader_c() {}
-
-#if (defined(__GNUC__) && defined(__x86_64)) || (defined(_MSC_VER) && defined(_M_X64))
-#include <emmintrin.h>
-    void generate_start_codes_tbl() {
-        static const __m128i pattern_0 = _mm_setzero_si128();
-        static const __m128i pattern_1 = _mm_set1_epi8(1);
-
-        for (int i = 0; i < buffer_pool.size(); i += 4) {
-            uint8_t* ptr = (uint8_t*)&buffer_pool[i];
-
-            __m128i tmp0 = _mm_cmpeq_epi8(_mm_loadu_si128((__m128i*)(ptr + 0)), pattern_0);
-            __m128i tmp1 = _mm_cmpeq_epi8(_mm_loadu_si128((__m128i*)(ptr + 1)), pattern_0);
-            __m128i tmp2 = _mm_cmpeq_epi8(_mm_loadu_si128((__m128i*)(ptr + 2)), pattern_1);
-            int mask = _mm_movemask_epi8(_mm_and_si128(_mm_and_si128(tmp0, tmp1), tmp2));
-
-            while (mask) {
-                int zcnt = bit_scan_forward(mask);
-                mask >>= (zcnt + 1);
-                ptr += zcnt;
-                start_code_tbl.push_back((uint32_t*)ptr++);
-            }
-        }
-    }
-#endif
-
-    void generate_start_codes_tbl_c() {
-        auto buf_start = (uint8_t*)buffer_ptr;
-        auto buf_end = (uint8_t*)buffer_end;
-        int zcnt = 0;
-        for (auto ptr = buf_start; ptr < buf_end; ptr++) {
-            if (*ptr == 0) zcnt++;
-            else {
-                if ((*ptr == 1) && (zcnt >= 2))
-                    start_code_tbl.push_back((uint32_t*)(ptr - 2));
-                zcnt = 0;
-            }
-        }
-    }
 
     MP2V_INLINE uint32_t get_next_bits(int len) {
         update_buffer();
@@ -119,6 +83,13 @@ public:
         return false;
     }
 
+    MP2V_INLINE uint32_t get_next_start_code() {
+        buffer_idx = 32;
+        buffer_ptr = start_code_tbl[start_code_idx] + 1;
+        buffer = (uint64_t)bswap_32(*start_code_tbl[start_code_idx++]);
+        return buffer;
+    }
+
     MP2V_INLINE void skip_bits(int len) {
         buffer_idx += len;
     }
@@ -126,13 +97,52 @@ public:
     uint32_t*& get_ptr() { return buffer_ptr; }
     uint64_t & get_buf() { return buffer; }
     uint32_t & get_idx() { return buffer_idx; }
+private:
+#if (defined(__GNUC__) && defined(__x86_64)) || (defined(_MSC_VER) && defined(_M_X64))
+#include <emmintrin.h>
+    void generate_start_codes_tbl() {
+        static const __m128i pattern_0 = _mm_setzero_si128();
+        static const __m128i pattern_1 = _mm_set1_epi8(1);
+
+        for (int i = 0; i < buffer_pool.size(); i += 4) {
+            uint8_t* ptr = (uint8_t*)&buffer_pool[i];
+
+            __m128i tmp0 = _mm_cmpeq_epi8(_mm_loadu_si128((__m128i*)(ptr + 0)), pattern_0);
+            __m128i tmp1 = _mm_cmpeq_epi8(_mm_loadu_si128((__m128i*)(ptr + 1)), pattern_0);
+            __m128i tmp2 = _mm_cmpeq_epi8(_mm_loadu_si128((__m128i*)(ptr + 2)), pattern_1);
+            int mask = _mm_movemask_epi8(_mm_and_si128(_mm_and_si128(tmp0, tmp1), tmp2));
+
+            while (mask) {
+                int zcnt = bit_scan_forward(mask);
+                mask >>= (zcnt + 1);
+                ptr += zcnt;
+                start_code_tbl.push_back((uint32_t*)ptr++);
+            }
+        }
+    }
+#else
+    void generate_start_codes_tbl() {
+        auto buf_start = (uint8_t*)buffer_ptr;
+        auto buf_end = (uint8_t*)buffer_end;
+        int zcnt = 0;
+        for (auto ptr = buf_start; ptr < buf_end; ptr++) {
+            if (*ptr == 0) zcnt++;
+            else {
+                if ((*ptr == 1) && (zcnt >= 2))
+                    start_code_tbl.push_back((uint32_t*)(ptr - 2));
+                zcnt = 0;
+            }
+        }
+    }
+#endif
 
 private:
     //FILE* bitstream = nullptr;
     std::vector<uint32_t*> start_code_tbl;
     std::vector<uint32_t, AlignmentAllocator<uint8_t, 32>> buffer_pool;
-    ALIGN(16) uint32_t* buffer_ptr = nullptr;
-    ALIGN(16) uint32_t* buffer_end = nullptr;
-    ALIGN(16) uint64_t  buffer = 0;
-    ALIGN(16) uint32_t  buffer_idx = 64;
+    uint32_t* buffer_ptr = nullptr;
+    uint32_t* buffer_end = nullptr;
+    uint64_t  buffer = 0;
+    uint32_t  buffer_idx = 64;
+    uint32_t  start_code_idx = 0;
 };

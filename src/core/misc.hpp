@@ -3,11 +3,6 @@
 #include "scan.h"
 #include <stdint.h>
 
-static uint8_t local_find_start_code(bitstream_reader_c* bs) {
-    bs->seek_pattern(vlc_start_code.value, vlc_start_code.len);
-    return (uint8_t)(bs->get_next_bits(32) & 0xff);
-}
-
 static uint8_t local_next_start_code(bitstream_reader_c* bs) {
     uint32_t full_start_code = bs->get_next_bits(32);
     return full_start_code & 0xff;
