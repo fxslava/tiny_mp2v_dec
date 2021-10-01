@@ -22,14 +22,6 @@ public:
 };
 #endif
 
-enum extension_after_code_e {
-    after_sequence_header = 0,
-    after_picture_header,
-    after_sequence_extension,
-    after_group_of_picture_header,
-    after_picture_coding_extension
-};
-
 struct decoder_config_t {
     int width;
     int height;

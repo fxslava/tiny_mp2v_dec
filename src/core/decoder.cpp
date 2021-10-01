@@ -253,17 +253,10 @@ bool mp2v_decoder_c::decode() {
     while (1) {
         uint8_t start_code = (uint8_t)(m_bs->get_next_start_code() & 0xff);
         switch (start_code) {
-        case sequence_header_code:
-            parse_sequence_header(m_bs, m_sequence_header);
-            break;
-        case extension_start_code:
-            decode_extension_data(cur_pic);
-            break;
-        case group_start_code:
-            parse_group_of_pictures_header(m_bs, *(m_group_of_pictures_header = new group_of_pictures_header_t));
-            break;
-        case picture_start_code:
-        {
+        case sequence_header_code: parse_sequence_header(m_bs, m_sequence_header); break;
+        case extension_start_code: decode_extension_data(cur_pic);                 break;
+        case group_start_code:     parse_group_of_pictures_header(m_bs, *(m_group_of_pictures_header = new group_of_pictures_header_t)); break;
+        case picture_start_code:   {
             new_picture = true;
             if (cur_pic) {
                 auto* frame = cur_pic->get_frame();
@@ -274,7 +267,7 @@ bool mp2v_decoder_c::decode() {
 
             static int num_pics = 0;
             num_pics++;
-            if (num_pics > 98)
+            if (num_pics > 99)
             {
                 push_frame(nullptr);
                 return true;
@@ -292,9 +285,7 @@ bool mp2v_decoder_c::decode() {
             m_pictures_pool.pop_back();
         }
         break;
-        case user_data_start_code:
-            decode_user_data();
-            break;
+        case user_data_start_code: decode_user_data(); break;
         case sequence_error_code:
         case sequence_end_code:
             break;
