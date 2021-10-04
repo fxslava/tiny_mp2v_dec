@@ -65,6 +65,70 @@ MP2V_INLINE int16_t parse_dct_dc_coeff(bitstream_reader_c* bs, uint16_t& dct_dc_
 }
 
 template<bool use_dct_one_table, bool intra, bool alt_scan>
+MP2V_INLINE bool parse_coeff(uint32_t*& bit_ptr, uint64_t & bit_buf, uint64_t & bit_tmp, uint32_t & bit_idx, int16_t* qfs, uint16_t W[64], uint8_t quantizer_scale, int &i)
+{
+    int run = 0, level = 0, sign = 0;
+    uint32_t buffer = GET_NEXT_BITS(32);
+
+    // EOB
+    if (use_dct_one_table) { if ((buffer & 0xF0000000) == (0b0110ll << (32 - 4))) { SKIP_BITS(4); return true; } }
+    else { if ((buffer & 0xc0000000) == (0b10 << (32 - 2))) { SKIP_BITS(2); return true; } }
+
+    if ((buffer & 0xfc000000) == (0b000001 << (32 - 6))) { // escape code
+        buffer <<= 6;
+        run = ((uint32_t)buffer >> (32 - 6));
+        buffer <<= 6;
+        level = ((int32_t)buffer >> (32 - 12));
+        sign = ((int32_t)level >> 31); // store sign
+        level = (level ^ sign) - sign; // remove sign
+        SKIP_BITS(24);
+    }
+    else if ((buffer & 0xf8000000) == (0b00100 << (32 - 5))) {
+        coeff_t coeff = (use_dct_one_table ? vlc_coeff_one_ex : vlc_coeff_zero_ex)[(buffer >> (32 - 8)) & 7];
+        level = coeff.level;
+        sign = (buffer & (1 << (31 - 9))) ? -1 : 0;
+        run = coeff.run;
+        SKIP_BITS(9);
+    }
+    else {
+        vlc_lut_coeff_t coeff;
+        if (use_dct_one_table) {
+            int nlz = bit_scan_reverse(buffer);
+            if (nlz > 0) {
+                int idx = buffer >> (32 - nlz - 5);
+                coeff = vlc_coeff_one0[nlz - 1][idx];
+            }
+            else {
+                nlz = std::min<uint32_t>(bit_scan_reverse(~buffer), 8);
+                int idx = (buffer >> (32 - nlz - 3)) & 7;
+                coeff = vlc_coeff_one1[nlz - 1][idx];
+            }
+        }
+        else {
+            int nlz = bit_scan_reverse(buffer);
+            int idx = buffer >> (32 - nlz - 5);
+            coeff = vlc_coeff_zero[nlz][idx];
+        }
+        run = coeff.coeff.run;
+        sign = (buffer & (1 << (31 - coeff.len))) ? -1 : 0;
+        level = coeff.coeff.level;
+        SKIP_BITS(coeff.len + 1);
+    }
+
+    int32_t val;
+    i += run;
+    int idx = (int)g_scan_trans[alt_scan ? 1 : 0][i];
+    if (intra) val = (level * W[i] * quantizer_scale) >> 4;
+    else       val = ((2 * level + 1) * W[i] * quantizer_scale) >> 5;
+    val = (val ^ sign) - sign; // apply sign
+
+    qfs[idx] = std::max<int16_t>(std::min<int16_t>(val, (int16_t)2047), (int16_t)-2048);
+    i++;
+
+    return false;
+}
+
+template<bool use_dct_one_table, bool intra, bool alt_scan>
 static void parse_block(bitstream_reader_c* bs, int16_t* qfs, uint16_t W[64], uint8_t quantizer_scale) {
     int run = 0, level = 0, i = intra ? 1 : 0, sign = 0;
     BITSTREAM(bs);
@@ -80,64 +144,15 @@ static void parse_block(bitstream_reader_c* bs, int16_t* qfs, uint16_t W[64], ui
         }
     }
 
-    while (1) {
+    while(1) {
         UPDATE_BITS();
-        uint32_t buffer = GET_NEXT_BITS(32);
-
-        // EOB
-        if (use_dct_one_table) { if ((buffer & 0xF0000000) == (0b0110ll << (32 - 4))) { SKIP_BITS(4); break; } }
-        else                   { if ((buffer & 0xc0000000) == (0b10 << (32 - 2)))     { SKIP_BITS(2); break; } }
-
-        if ((buffer & 0xfc000000) == (0b000001 << (32 - 6))) { // escape code
-            buffer <<= 6;
-            run = ((uint32_t)buffer >> (32 - 6));
-            buffer <<= 6;
-            level = ((int32_t)buffer >> (32 - 12));
-            sign = ((int32_t)level >> 31); // store sign
-            level = (level ^ sign) - sign; // remove sign
-            SKIP_BITS(24);
-        }
-        else if ((buffer & 0xf8000000) == (0b00100 << (32 - 5))) {
-            coeff_t coeff = (use_dct_one_table ? vlc_coeff_one_ex : vlc_coeff_zero_ex)[(buffer >> (32 - 8)) & 7];
-            level = coeff.level;
-            sign = (buffer & (1 << (31 - 9))) ? -1 : 0;
-            run = coeff.run;
-            SKIP_BITS(9);
-        }
-        else {
-            vlc_lut_coeff_t coeff;
-            if (use_dct_one_table) {
-                int nlz = bit_scan_reverse(buffer);
-                if (nlz > 0) {
-                    int idx = buffer >> (32 - nlz - 5);
-                    coeff = vlc_coeff_one0[nlz - 1][idx];
-                }
-                else {
-                    nlz = std::min<uint32_t>(bit_scan_reverse(~buffer), 8);
-                    int idx = (buffer >> (32 - nlz - 3)) & 7;
-                    coeff = vlc_coeff_one1[nlz - 1][idx];
-                }
-            }
-            else {
-                int nlz = bit_scan_reverse(buffer);
-                int idx = buffer >> (32 - nlz - 5);
-                coeff = vlc_coeff_zero[nlz][idx];
-            }
-            run = coeff.coeff.run;
-            sign = (buffer & (1 << (31 - coeff.len))) ? -1 : 0;
-            level = coeff.coeff.level;
-            SKIP_BITS(coeff.len + 1);
-        }
-
-        int32_t val;
-        i += run;
-        int idx = (int)g_scan_trans[alt_scan ? 1 : 0][i];
-        if (intra) val = (level * W[i] * quantizer_scale) >> 4;
-        else       val = ((2 * level + 1) * W[i] * quantizer_scale) >> 5;
-        val = (val ^ sign) - sign; // apply sign
-
-        qfs[idx] = std::max<int16_t>(std::min<int16_t>(val, (int16_t)2047), (int16_t)-2048);
-        i++;
+        if (parse_coeff<use_dct_one_table, intra, alt_scan>(bit_ptr, bit_buf, bit_tmp, bit_idx, qfs, W, quantizer_scale, i)) break;
+        UPDATE_BITS();
+        if (parse_coeff<use_dct_one_table, intra, alt_scan>(bit_ptr, bit_buf, bit_tmp, bit_idx, qfs, W, quantizer_scale, i)) break;
+        UPDATE_BITS();
+        if (parse_coeff<use_dct_one_table, intra, alt_scan>(bit_ptr, bit_buf, bit_tmp, bit_idx, qfs, W, quantizer_scale, i)) break;
+        UPDATE_BITS();
+        if (parse_coeff<use_dct_one_table, intra, alt_scan>(bit_ptr, bit_buf, bit_tmp, bit_idx, qfs, W, quantizer_scale, i)) break;
     }
 
     UPDATE_BITS();
