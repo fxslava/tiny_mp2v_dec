@@ -4,27 +4,40 @@
 #include <vector>
 #include "core/common/cpu.hpp"
 
+#ifdef SIMPLE
 #define BITSTREAM(bs) \
 uint32_t*& bit_ptr = bs->get_ptr(); \
 uint64_t & bit_buf = bs->get_buf(); \
-uint32_t & bit_idx = bs->get_idx(); \
+uint32_t & bit_idx = bs->get_idx();
 
 #define GET_NEXT_BITS(len) ((bit_buf << bit_idx) >> (64 - len))
 #define SKIP_BITS(len) bit_idx += len
 #define UPDATE_BITS() if (bit_idx >= 32) { bit_buf <<= 32; bit_buf |= (uint64_t)bswap_32(*(bit_ptr++)); bit_idx -= 32; }
+#else
+#define BITSTREAM(bs) \
+uint32_t*& bit_ptr = bs->get_ptr(); \
+uint64_t & bit_buf = bs->get_buf(); \
+uint64_t & bit_tmp = bs->get_tmp(); \
+uint32_t & bit_idx = bs->get_idx();
+
+#define GET_NEXT_BITS(len) (bit_buf >> (64 - len))
+#define SKIP_BITS(len) { bit_buf <<= len; bit_idx += len; }
+#define LOAD_64BITS() { bit_buf |= bswap_64(*(uint64_t*)(bit_ptr)) << (bit_idx - 64); bit_buf += 2; bit_tmp = bswap_64(*(uint64_t*)(bit_ptr)); bit_idx -= 64; }
+#define LOAD_32BITS() { bit_buf |= bswap_64(*(uint64_t*)(bit_ptr++)) >> (64 - bit_idx); bit_tmp = bswap_64(*(uint64_t*)(bit_ptr)); bit_idx -= 32; }
+#define UPDATE_BITS() { if (bit_idx >= 64) LOAD_64BITS() else if (bit_idx >= 32) LOAD_32BITS() else if (bit_idx != 0) { bit_buf |= bit_tmp >> (64 - bit_idx); } }
+#endif
 
 class bitstream_reader_c {
+#ifdef SIMPLE
 private:
-    MP2V_INLINE void read32() {
-        buffer <<= 32;
-        buffer |= (uint64_t)bswap_32(*(buffer_ptr++));
-        buffer_idx -= 32;
-    }
-
     MP2V_INLINE void update_buffer() {
-        if (buffer_idx >= 32)
-            read32();
+        if (buffer_idx >= 32) {
+            buffer <<= 32;
+            buffer |= (uint64_t)bswap_32(*(buffer_ptr++));
+            buffer_idx -= 32;
+        }
     }
+#endif
 public:
     bitstream_reader_c(std::string filename) :
         buffer(0),
@@ -52,6 +65,11 @@ public:
 
     ~bitstream_reader_c() {}
 
+#ifdef SIMPLE
+    MP2V_INLINE void skip_bits(int len) {
+        buffer_idx += len;
+    }
+
     MP2V_INLINE uint32_t get_next_bits(int len) {
         update_buffer();
         uint64_t tmp = buffer << buffer_idx;
@@ -70,14 +88,57 @@ public:
         buffer = (uint64_t)bswap_32(*start_code_tbl[start_code_idx++]);
         return buffer;
     }
+#else
+    MP2V_INLINE uint64_t& update() {
+        if (buffer_idx >= 64) {
+            buffer |= bswap_64(*(uint64_t*)(buffer_ptr)) << (buffer_idx - 64);
+            buffer_ptr += 2;
+            cache = bswap_64(*(uint64_t*)(buffer_ptr)); // precache next value
+            buffer_idx -= 64;
+            return buffer;
+        }
+        else if (buffer_idx >= 32) {
+            buffer |= bswap_64(*(uint64_t*)(buffer_ptr++)) >> (64 - buffer_idx);
+            cache = bswap_64(*(uint64_t*)(buffer_ptr)); // precache next value
+            buffer_idx -= 32;
+            return buffer;
+        }
+        else if (buffer_idx != 0) {
+            buffer |= cache >> (64 - buffer_idx);
+            return buffer;
+        }
+    }
 
     MP2V_INLINE void skip_bits(int len) {
+        buffer <<= len;
         buffer_idx += len;
     }
+
+    MP2V_INLINE uint32_t get_next_bits(int len) {
+        update();
+        return buffer >> (64 - len);
+    }
+
+    MP2V_INLINE uint32_t read_next_bits(int len) {
+        uint32_t tmp = get_next_bits(len);
+        skip_bits(len);
+        return tmp;
+    }
+
+    MP2V_INLINE uint32_t get_next_start_code() {
+        buffer_idx = 0;
+        buffer_ptr = start_code_tbl[start_code_idx++];
+        buffer = bswap_64(*((uint64_t*)buffer_ptr));
+        buffer_ptr += 2;
+        cache = bswap_64(*((uint64_t*)buffer_ptr));
+        return buffer >> 32;
+    }
+#endif
 
     uint32_t*& get_ptr() { return buffer_ptr; }
     uint64_t & get_buf() { return buffer; }
     uint32_t & get_idx() { return buffer_idx; }
+    uint64_t & get_tmp() { return cache; }
 private:
 #if (defined(__GNUC__) && defined(__x86_64)) || (defined(_MSC_VER) && defined(_M_X64))
 #include <emmintrin.h>
@@ -124,6 +185,7 @@ private:
     uint32_t* buffer_ptr = nullptr;
     uint32_t* buffer_end = nullptr;
     uint64_t  buffer = 0;
+    uint64_t  cache = 0;
     uint32_t  buffer_idx = 64;
     uint32_t  start_code_idx = 0;
 };
