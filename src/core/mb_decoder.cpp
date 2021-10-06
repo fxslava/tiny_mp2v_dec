@@ -64,18 +64,18 @@ MP2V_INLINE int16_t parse_dct_dc_coeff(bitstream_reader_c* bs, uint16_t& dct_dc_
     return dct_dc_pred << (3 - intra_dc_precision);;
 }
 
-template<bool use_dct_one_table, bool intra, bool alt_scan>
-static void parse_block(bitstream_reader_c* bs, int16_t* qfs, uint16_t W[64], uint8_t quantizer_scale) {
-    int run = 0, level = 0, i = intra ? 1 : 0, sign = 0;
+template<bool use_dct_one_table, bool intra>
+static int parse_block(bitstream_reader_c* bs, int8_t* qfs, int8_t* qid) {
+    int run = 0, level = 0, i = intra ? 1 : 0, sign = 0, j = intra ? 1 : 0;
     BITSTREAM(bs);
 
     if (!use_dct_one_table) {
         UPDATE_BITS();
-        uint32_t coef = GET_NEXT_BITS(2);
+        int coef = GET_NEXT_BITS(2);
         if (coef & 2) {
-            sign = -(coef & 1);
-            int16_t val = (level * W[i] * quantizer_scale) >> 5;
-            qfs[i++] = (val ^ sign) - sign;
+            qfs[j] = (coef & 1) * 2 - 1;
+            qid[j] = i++;
+            j++;
             SKIP_BITS(2);
         }
     }
@@ -129,18 +129,14 @@ static void parse_block(bitstream_reader_c* bs, int16_t* qfs, uint16_t W[64], ui
             SKIP_BITS(coeff.len + 1);
         }
 
-        int32_t val;
         i += run;
-        int idx = (int)g_scan_trans[alt_scan ? 1 : 0][i];
-        if (intra) val = (level * W[i] * quantizer_scale) >> 4;
-        else       val = ((2 * level + 1) * W[i] * quantizer_scale) >> 5;
-        val = (val ^ sign) - sign; // apply sign
-
-        qfs[idx] = std::max<int16_t>(std::min<int16_t>(val, (int16_t)2047), (int16_t)-2048);
-        i++;
+        qid[j] = i;
+        qfs[j] = (level ^ sign) - sign;
+        j++; i++;
     }
 
     UPDATE_BITS();
+    return j;
 }
 
 #if defined(__aarch64__) || defined(__arm__)
@@ -154,11 +150,17 @@ MP2V_INLINE void decode_block_template(bitstream_reader_c* m_bs, uint8_t* plane,
 }
 #else
 #include "idct_sse2.hpp"
+#include "dequant_sse2.hpp"
 template<bool alt_scan, bool intra, bool add, bool use_dct_one_table, bool luma = false>
 MP2V_INLINE void decode_block_template(bitstream_reader_c* m_bs, uint8_t* plane, uint32_t stride, uint16_t W_i[64], uint16_t W[64], uint8_t quantizer_scale, uint16_t& dct_dc_pred, uint8_t intra_dc_prec) {
     ALIGN(32) int16_t QFS[64] = { 0 };
-    if (intra) QFS[0] = parse_dct_dc_coeff<luma>(m_bs, dct_dc_pred, intra_dc_prec);
-    parse_block<use_dct_one_table, intra, alt_scan>(m_bs, QFS, intra ? W_i : W, quantizer_scale);
+    ALIGN(32) int8_t  qfs[64] = { 0 };
+    ALIGN(32) int8_t  qid[64] = { 0 };
+    int16_t QFS0 = 0;
+    if (intra) QFS0 = parse_dct_dc_coeff<luma>(m_bs, dct_dc_pred, intra_dc_prec);
+    int n = parse_block<use_dct_one_table, intra>(m_bs, qfs, qid);
+    dequant_sse2<intra, alt_scan>(QFS, qfs, qid, n, intra ? W_i : W, quantizer_scale);
+    if (intra) QFS[0] = QFS0;
     inverse_dct_template_sse2<add>(plane, QFS, stride);
 }
 #endif
