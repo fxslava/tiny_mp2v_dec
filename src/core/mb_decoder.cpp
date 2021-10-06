@@ -74,7 +74,7 @@ static void parse_block(bitstream_reader_c* bs, int16_t* qfs, uint16_t W[64], ui
         uint32_t coef = GET_NEXT_BITS(2);
         if (coef & 2) {
             sign = -(coef & 1);
-            int16_t val = (level * W[i] * quantizer_scale) >> 5;
+            int16_t val = (W[i] * quantizer_scale) >> 5;
             qfs[i++] = (val ^ sign) - sign;
             SKIP_BITS(2);
         }
