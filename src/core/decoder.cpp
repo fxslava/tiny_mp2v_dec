@@ -112,7 +112,6 @@ bool mp2v_picture_c::decode_slice() {
     }
 
     // calculate row position of the slice
-    int mb_col = 0;
     int mb_row = 0;
     int slice_vertical_position = slice.slice_start_code & 0xff;
     if (sh.vertical_size_value > 2800)
@@ -146,7 +145,6 @@ bool mp2v_picture_c::decode_slice() {
     // decode macroblocks
     m_bs->skip_bits(1); /* with the value '0' */
     do {
-        mb_col++;
         m_parse_macroblock_func(m_bs, cache);
 
 #ifdef _DEBUG
