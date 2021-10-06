@@ -144,17 +144,20 @@ static void parse_block(bitstream_reader_c* bs, int16_t* qfs, uint16_t W[64], ui
         }
     }
 
-    while(1) {
+    for (int i = 0; i < 16; i++) {
+        UPDATE_BITS();
+        if (parse_coeff<use_dct_one_table, intra, alt_scan>(bit_ptr, bit_buf, bit_tmp, bit_idx, qfs, W, quantizer_scale, i)) goto bye;
+        if (parse_coeff<use_dct_one_table, intra, alt_scan>(bit_ptr, bit_buf, bit_tmp, bit_idx, qfs, W, quantizer_scale, i)) goto bye;
+    }
+
+    while (1) {
         UPDATE_BITS();
         if (parse_coeff<use_dct_one_table, intra, alt_scan>(bit_ptr, bit_buf, bit_tmp, bit_idx, qfs, W, quantizer_scale, i)) break;
-        UPDATE_BITS();
         if (parse_coeff<use_dct_one_table, intra, alt_scan>(bit_ptr, bit_buf, bit_tmp, bit_idx, qfs, W, quantizer_scale, i)) break;
-        UPDATE_BITS();
-        if (parse_coeff<use_dct_one_table, intra, alt_scan>(bit_ptr, bit_buf, bit_tmp, bit_idx, qfs, W, quantizer_scale, i)) break;
-        UPDATE_BITS();
         if (parse_coeff<use_dct_one_table, intra, alt_scan>(bit_ptr, bit_buf, bit_tmp, bit_idx, qfs, W, quantizer_scale, i)) break;
     }
 
+bye:
     UPDATE_BITS();
 }
 

@@ -22,7 +22,7 @@ uint32_t & bit_idx = bs->get_idx();
 
 #define GET_NEXT_BITS(len) (bit_buf >> (64 - len))
 #define SKIP_BITS(len) { bit_buf <<= len; bit_idx += len; }
-#define LOAD_64BITS() { bit_buf |= bswap_64(*(uint64_t*)(bit_ptr)) << (bit_idx - 64); bit_buf += 2; bit_tmp = bswap_64(*(uint64_t*)(bit_ptr)); bit_idx -= 64; }
+#define LOAD_64BITS() { bit_buf |= bswap_64(*(uint64_t*)(bit_ptr)) << (bit_idx - 64); bit_ptr += 2; bit_tmp = bswap_64(*(uint64_t*)(bit_ptr)); bit_idx -= 64; }
 #define LOAD_32BITS() { bit_buf |= bswap_64(*(uint64_t*)(bit_ptr++)) >> (64 - bit_idx); bit_tmp = bswap_64(*(uint64_t*)(bit_ptr)); bit_idx -= 32; }
 #define UPDATE_BITS() { if (bit_idx >= 64) LOAD_64BITS() else if (bit_idx >= 32) LOAD_32BITS() else if (bit_idx != 0) { bit_buf |= bit_tmp >> (64 - bit_idx); } }
 #endif
