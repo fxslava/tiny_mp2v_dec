@@ -16,6 +16,6 @@ mc_bidir_func_t mc_bidir_8xh[16] = {  mc_bidir0000_8xh_##prefix,  mc_bidir0001_8
 #include "mc_c.hpp"
 MC_ARRAYS(c)
 #else
-#include "mc_naive_sse2.hpp"
-MC_ARRAYS(nsse2)
+#include "mc_sse2.hpp"
+MC_ARRAYS(sse2)
 #endif
