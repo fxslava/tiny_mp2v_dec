@@ -59,7 +59,7 @@ public:
 private:
     bitstream_reader_c* m_bs;
     mp2v_decoder_c* m_dec;
-    uint16_t quantiser_matrices[4][64];
+    uint8_t quantiser_matrices[4][64];
     parse_macroblock_func_t m_parse_macroblock_func = nullptr;
     frame_c* m_frame;
 public:

@@ -65,7 +65,7 @@ MP2V_INLINE int16_t parse_dct_dc_coeff(bitstream_reader_c* bs, uint16_t& dct_dc_
 }
 
 template<bool use_dct_one_table, bool intra>
-static int parse_block(bitstream_reader_c* bs, int8_t* qfs, int8_t* qid) {
+static int parse_block(bitstream_reader_c* bs, int8_t* qfs, int8_t* qid, uint8_t* w, uint8_t W[64]) {
     int run = 0, level = 0, i = intra ? 1 : 0, sign = 0, j = intra ? 1 : 0;
     BITSTREAM(bs);
 
@@ -74,8 +74,9 @@ static int parse_block(bitstream_reader_c* bs, int8_t* qfs, int8_t* qid) {
         int coef = GET_NEXT_BITS(2);
         if (coef & 2) {
             qfs[j] = (coef & 1) * 2 - 1;
-            qid[j] = i++;
-            j++;
+            qid[j] = i;
+            w[j] = W[i];
+            i++; j++;
             SKIP_BITS(2);
         }
     }
@@ -132,6 +133,7 @@ static int parse_block(bitstream_reader_c* bs, int8_t* qfs, int8_t* qid) {
         i += run;
         qid[j] = i;
         qfs[j] = (level ^ sign) - sign;
+        w[j] = W[i];
         j++; i++;
     }
 
@@ -152,14 +154,15 @@ MP2V_INLINE void decode_block_template(bitstream_reader_c* m_bs, uint8_t* plane,
 #include "idct_sse2.hpp"
 #include "dequant_sse2.hpp"
 template<bool alt_scan, bool intra, bool add, bool use_dct_one_table, bool luma = false>
-MP2V_INLINE void decode_block_template(bitstream_reader_c* m_bs, uint8_t* plane, uint32_t stride, uint16_t W_i[64], uint16_t W[64], uint8_t quantizer_scale, uint16_t& dct_dc_pred, uint8_t intra_dc_prec) {
+MP2V_INLINE void decode_block_template(bitstream_reader_c* m_bs, uint8_t* plane, uint32_t stride, uint8_t W_i[64], uint8_t W[64], uint8_t quantizer_scale, uint16_t& dct_dc_pred, uint8_t intra_dc_prec) {
     ALIGN(32) int16_t QFS[64] = { 0 };
     ALIGN(32) int8_t  qfs[64] = { 0 };
     ALIGN(32) int8_t  qid[64] = { 0 };
+    ALIGN(32) uint8_t w  [64] = { 0 };
     int16_t QFS0 = 0;
     if (intra) QFS0 = parse_dct_dc_coeff<luma>(m_bs, dct_dc_pred, intra_dc_prec);
-    int n = parse_block<use_dct_one_table, intra>(m_bs, qfs, qid);
-    dequant_sse2<intra, alt_scan>(QFS, qfs, qid, n, intra ? W_i : W, quantizer_scale);
+    int n = parse_block<use_dct_one_table, intra>(m_bs, qfs, qid, w, intra ? W_i : W);
+    dequant_sse2<intra, alt_scan>(QFS, qfs, qid, w, n, quantizer_scale);
     if (intra) QFS[0] = QFS0;
     inverse_dct_template_sse2<add>(plane, QFS, stride);
 }

@@ -9,7 +9,7 @@ enum reference_type_t  {
 };
 
 struct macroblock_context_cache_t {
-    uint16_t W[4][64];
+    uint8_t W[4][64];
     uint32_t f_code[2][2]; 
     int16_t  PMVs[2][2][2];
     uint16_t dct_dc_pred[3];
