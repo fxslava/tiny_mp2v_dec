@@ -65,7 +65,7 @@ MP2V_INLINE int16_t parse_dct_dc_coeff(bitstream_reader_c* bs, uint16_t& dct_dc_
 }
 
 template<bool use_dct_one_table, bool intra, bool alt_scan>
-static void parse_block(bitstream_reader_c* bs, int16_t* qfs, uint16_t W[64], uint8_t quantizer_scale) {
+static void parse_block(bitstream_reader_c* bs, int16_t* qfs, uint8_t W[64], uint8_t quantizer_scale) {
     int run = 0, level = 0, i = intra ? 1 : 0, sign = 0;
     BITSTREAM(bs);
 
@@ -146,7 +146,7 @@ static void parse_block(bitstream_reader_c* bs, int16_t* qfs, uint16_t W[64], ui
 #if defined(__aarch64__) || defined(__arm__)
 #include "idct_c.hpp"
 template<bool alt_scan, bool intra, bool add, bool use_dct_one_table, bool luma = false>
-MP2V_INLINE void decode_block_template(bitstream_reader_c* m_bs, uint8_t* plane, uint32_t stride, uint16_t W_i[64], uint16_t W[64], uint8_t quantizer_scale, uint16_t& dct_dc_pred, uint8_t intra_dc_prec) {
+MP2V_INLINE void decode_block_template(bitstream_reader_c* m_bs, uint8_t* plane, uint32_t stride, uint8_t W_i[64], uint8_t W[64], uint8_t quantizer_scale, uint16_t& dct_dc_pred, uint8_t intra_dc_prec) {
     ALIGN(32) int16_t QFS[64] = { 0 };
     if (intra) QFS[0] = parse_dct_dc_coeff<luma>(m_bs, dct_dc_pred, intra_dc_prec);
     parse_block<use_dct_one_table, intra, alt_scan>(m_bs, QFS, intra ? W_i : W, quantizer_scale);
@@ -155,7 +155,7 @@ MP2V_INLINE void decode_block_template(bitstream_reader_c* m_bs, uint8_t* plane,
 #else
 #include "idct_sse2.hpp"
 template<bool alt_scan, bool intra, bool add, bool use_dct_one_table, bool luma = false>
-MP2V_INLINE void decode_block_template(bitstream_reader_c* m_bs, uint8_t* plane, uint32_t stride, uint16_t W_i[64], uint16_t W[64], uint8_t quantizer_scale, uint16_t& dct_dc_pred, uint8_t intra_dc_prec) {
+MP2V_INLINE void decode_block_template(bitstream_reader_c* m_bs, uint8_t* plane, uint32_t stride, uint8_t W_i[64], uint8_t W[64], uint8_t quantizer_scale, uint16_t& dct_dc_pred, uint8_t intra_dc_prec) {
     ALIGN(32) int16_t QFS[64] = { 0 };
     if (intra) QFS[0] = parse_dct_dc_coeff<luma>(m_bs, dct_dc_pred, intra_dc_prec);
     parse_block<use_dct_one_table, intra, alt_scan>(m_bs, QFS, intra ? W_i : W, quantizer_scale);
