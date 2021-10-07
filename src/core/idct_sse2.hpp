@@ -94,7 +94,7 @@ MP2V_INLINE void transpose_8x8_sse2(__m128i (&src)[8]) {
 }
 
 template<bool add>
-void inverse_dct_template_sse2(uint8_t* plane, int16_t F[64], int stride) {
+void inverse_dct_template(uint8_t* plane, int16_t F[64], int stride) {
     __m128i buffer[8];
     for (int i = 0; i < 8; i++)
         buffer[i] = _mm_load_si128((__m128i*) & F[i*8]);

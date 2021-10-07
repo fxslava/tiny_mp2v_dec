@@ -3,8 +3,16 @@
 #include "mb_decoder.h"
 #include "mp2v_vlc.h"
 #include "mc.h"
-
 #include "scan.h"
+
+#if defined(CPU_PLATFORM_AARCH64)
+#include "idct_c.hpp"
+MC_ARRAYS(aarch64)
+#elif defined(CPU_PLATFORM_X64)
+#include "idct_sse2.hpp"
+#else
+#include "idct_c.hpp"
+#endif
 
 enum mc_template_e {
     mc_templ_field,
@@ -143,8 +151,6 @@ static void parse_block(bitstream_reader_c* bs, int16_t* qfs, uint8_t W[64], uin
     UPDATE_BITS();
 }
 
-#if defined(__aarch64__) || defined(__arm__)
-#include "idct_c.hpp"
 template<bool alt_scan, bool intra, bool add, bool use_dct_one_table, bool luma = false>
 MP2V_INLINE void decode_block_template(bitstream_reader_c* m_bs, uint8_t* plane, uint32_t stride, uint8_t W_i[64], uint8_t W[64], uint8_t quantizer_scale, uint16_t& dct_dc_pred, uint8_t intra_dc_prec) {
     ALIGN(32) int16_t QFS[64] = { 0 };
@@ -152,16 +158,6 @@ MP2V_INLINE void decode_block_template(bitstream_reader_c* m_bs, uint8_t* plane,
     parse_block<use_dct_one_table, intra, alt_scan>(m_bs, QFS, intra ? W_i : W, quantizer_scale);
     inverse_dct_template<add>(plane, QFS, stride);
 }
-#else
-#include "idct_sse2.hpp"
-template<bool alt_scan, bool intra, bool add, bool use_dct_one_table, bool luma = false>
-MP2V_INLINE void decode_block_template(bitstream_reader_c* m_bs, uint8_t* plane, uint32_t stride, uint8_t W_i[64], uint8_t W[64], uint8_t quantizer_scale, uint16_t& dct_dc_pred, uint8_t intra_dc_prec) {
-    ALIGN(32) int16_t QFS[64] = { 0 };
-    if (intra) QFS[0] = parse_dct_dc_coeff<luma>(m_bs, dct_dc_pred, intra_dc_prec);
-    parse_block<use_dct_one_table, intra, alt_scan>(m_bs, QFS, intra ? W_i : W, quantizer_scale);
-    inverse_dct_template_sse2<add>(plane, QFS, stride);
-}
-#endif
 
 //decode_transform_template<chroma_format, alt_scan, true, true >(m_bs, cache.yuv_planes[REF_TYPE_SRC], cache.luma_stride, cache.W, coded_block_pattern, cache.quantiser_scale, cache.dct_dc_pred, cache.intra_dc_prec);
 template<int chroma_format, bool alt_scan, bool intra, bool add, bool use_dct_one_table>

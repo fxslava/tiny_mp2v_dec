@@ -79,7 +79,7 @@ public:
     uint64_t & get_buf() { return buffer; }
     uint32_t & get_idx() { return buffer_idx; }
 private:
-#if (defined(__GNUC__) && defined(__x86_64)) || (defined(_MSC_VER) && defined(_M_X64))
+#if defined(CPU_PLATFORM_X64)
 #include <emmintrin.h>
     void generate_start_codes_tbl() {
         static const __m128i pattern_0 = _mm_setzero_si128();
@@ -101,7 +101,7 @@ private:
             }
         }
     }
-#elif defined(__aarch64__) || defined(__arm__)
+#elif defined(CPU_PLATFORM_AARCH64)
     void generate_start_codes_tbl() {
         auto buf_start = (uint8_t*)buffer_ptr;
         auto buf_end = (uint8_t*)buffer_end;

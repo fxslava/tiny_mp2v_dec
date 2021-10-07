@@ -57,7 +57,7 @@ int main(int argc, char* argv[])
 
         const auto start = std::chrono::system_clock::now();
 
-#if defined(WIN32)
+#if defined(_M_X64)
         __itt_resume();
         mp2v_decoder.decode();
         __itt_pause();

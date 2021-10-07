@@ -4,6 +4,22 @@
 #include <stdlib.h>
 #include <malloc.h>
 
+#if defined(__GNUC__) 
+#if defined(__x86_64)
+#define CPU_PLATFORM_X64
+#elif defined(__aarch64__) || defined(__arm__)
+#define CPU_PLATFORM_AARCH64
+#endif
+#endif
+
+#if defined(_MSC_VER) 
+#if defined(_M_X64)
+#define CPU_PLATFORM_X64
+#elif defined(_M_ARM) || defined(_M_ARM64)
+#define CPU_PLATFORM_AARCH64
+#endif
+#endif
+
 #if defined(__GNUC__) || defined(__clang__)
 #define MP2V_INLINE                   inline //__attribute__((always_inline))
 #define ALIGN(n)                      __attribute__ ((aligned(n)))
