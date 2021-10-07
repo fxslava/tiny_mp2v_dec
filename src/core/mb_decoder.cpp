@@ -7,7 +7,6 @@
 
 #if defined(CPU_PLATFORM_AARCH64)
 #include "idct_c.hpp"
-MC_ARRAYS(aarch64)
 #elif defined(CPU_PLATFORM_X64)
 #include "idct_sse2.hpp"
 #else

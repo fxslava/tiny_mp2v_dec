@@ -11,8 +11,10 @@
 // Tiny MPEG2 MC headers
 #include "core/mc.h"
 #include "core/mc_c.hpp"
-#if (defined(__GNUC__) && defined(__x86_64)) || (defined(_MSC_VER) && defined(_M_X64))
+#if defined(CPU_PLATFORM_X64)
 #include "core/mc_sse2.hpp"
+#elif defined(CPU_PLATFORM_AARCH64)
+#include "core/mc_aarch64.hpp"
 #endif
 
 constexpr int TEST_NUM_ITERATIONS = 10;
@@ -157,7 +159,10 @@ TEST_F(simd_mc_test_c, test_case##_bidir1101_8xh_##simd)  { EXPECT_TRUE(test_fun
 TEST_F(simd_mc_test_c, test_case##_bidir1110_8xh_##simd)  { EXPECT_TRUE(test_func(mc_bidir1110_8xh_##plane_c,  mc_bidir1110_8xh_##simd,  "mc_bidir1110_8xh_" #plane_c , "mc_bidir1110_8xh_" #simd )); } \
 TEST_F(simd_mc_test_c, test_case##_bidir1111_8xh_##simd)  { EXPECT_TRUE(test_func(mc_bidir1111_8xh_##plane_c,  mc_bidir1111_8xh_##simd,  "mc_bidir1111_8xh_" #plane_c , "mc_bidir1111_8xh_" #simd )); }
 
-#if (defined(__GNUC__) && defined(__x86_64)) || (defined(_MSC_VER) && defined(_M_X64))
+#if defined(CPU_PLATFORM_X64)
 TEST_MC_ROUTINES(validation, test_mc_pred, c, sse2)
 TEST_MC_ROUTINES(performance, test_mc_pred_performance, c, sse2)
+#elif defined(CPU_PLATFORM_AARCH64)
+TEST_MC_ROUTINES(validation, test_mc_pred, c, aarch64)
+TEST_MC_ROUTINES(performance, test_mc_pred_performance, c, aarch64)
 #endif
