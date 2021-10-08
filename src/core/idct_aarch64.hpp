@@ -96,8 +96,10 @@ void inverse_dct_template(uint8_t* plane, int16_t F[64], int stride) {
 
     for (int i = 0; i < 4; i++) {
         if (add) {
-            int16x8_t b0 = vaddw_u8(vreinterpretq_u16_s16(b0), vld1_u8(&plane[(i * 2 + 0) * stride]));
-            int16x8_t b1 = vaddw_u8(vreinterpretq_u16_s16(b1), vld1_u8(&plane[(i * 2 + 1) * stride]));
+            int16x8_t b0 = vshrq_n_s16(buffer[i * 2], 6);
+            int16x8_t b1 = vshrq_n_s16(buffer[i * 2 + 1], 6);
+            b0 = vaddw_u8(vreinterpretq_u16_s16(b0), vld1_u8(&plane[(i * 2 + 0) * stride]));
+            b1 = vaddw_u8(vreinterpretq_u16_s16(b1), vld1_u8(&plane[(i * 2 + 1) * stride]));
             vst1_u8(&plane[(i * 2 + 0) * stride], vqmovun_s16(b0));
             vst1_u8(&plane[(i * 2 + 1) * stride], vqmovun_s16(b1));
         }
