@@ -23,17 +23,15 @@ file(
 
 if(WIN32)
     set(
-        CMAKE_C_FLAGS
-            "${CMAKE_C_FLAGS} /fp:precise"
+        CMAKE_CXX_FLAGS
+            "${CMAKE_CXX_FLAGS} /fp:precise"
     )
 elseif(UNIX)
     set(
-        CMAKE_C_FLAGS
-            "${CMAKE_C_FLAGS} -msse2 -Ofast -g0 -Wall -marm"
+        CMAKE_CXX_FLAGS
+            "${CMAKE_CXX_FLAGS} -Ofast -g0 -Wall -march=armv8-a"
     )
 endif()
-
-message(STATUS, ${CMAKE_C_FLAGS})
 
 add_library(
 	${PROJECT_NAME}
