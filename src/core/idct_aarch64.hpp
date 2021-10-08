@@ -1,4 +1,4 @@
-// Copyright © 2021 Vladislav Ovchinnikov. All rights reserved.
+// Copyright ï¿½ 2021 Vladislav Ovchinnikov. All rights reserved.
 #pragma once
 #include <stdint.h>
 #include "arm_neon.h"
@@ -58,30 +58,30 @@ MP2V_INLINE void idct_1d_aarch64(int16x8_t(&src)[8]) {
 }
 
 MP2V_INLINE void transpose_8x8_aarch64(int16x8_t(&src)[8]) {
-    uint16x8_t V8  = vtrn1q_u16(src[0], src[1]);
-    uint16x8_t V9  = vtrn2q_u16(src[0], src[1]);
-    uint16x8_t V10 = vtrn1q_u16(src[2], src[3]);
-    uint16x8_t V11 = vtrn2q_u16(src[2], src[3]);
-    uint16x8_t V12 = vtrn1q_u16(src[4], src[5]);
-    uint16x8_t V13 = vtrn2q_u16(src[4], src[5]);
-    uint16x8_t V14 = vtrn1q_u16(src[6], src[7]);
-    uint16x8_t V15 = vtrn2q_u16(src[6], src[7]);
-    uint16x8_t V0  = vtrn1q_u32(V8,  V10);
-    uint16x8_t V1  = vtrn1q_u32(V9,  V11);
-    uint16x8_t V2  = vtrn2q_u32(V8,  V10);
-    uint16x8_t V3  = vtrn2q_u32(V9,  V11);
-    uint16x8_t V4  = vtrn1q_u32(V12, V14);
-    uint16x8_t V5  = vtrn1q_u32(V13, V15);
-    uint16x8_t V6  = vtrn2q_u32(V12, V14);
-    uint16x8_t V7  = vtrn2q_u32(V13, V15);
-    src[0] = vtrn1q_u64(V0, V4);
-    src[1] = vtrn1q_u64(V1, V5);
-    src[2] = vtrn1q_u64(V2, V6);
-    src[3] = vtrn1q_u64(V3, V7);
-    src[4] = vtrn2q_u64(V0, V4);
-    src[5] = vtrn2q_u64(V1, V5);
-    src[6] = vtrn2q_u64(V2, V6);
-    src[7] = vtrn2q_u64(V3, V7);
+    int16x8_t V8  = vtrn1q_s16(src[0], src[1]);
+    int16x8_t V9  = vtrn2q_s16(src[0], src[1]);
+    int16x8_t V10 = vtrn1q_s16(src[2], src[3]);
+    int16x8_t V11 = vtrn2q_s16(src[2], src[3]);
+    int16x8_t V12 = vtrn1q_s16(src[4], src[5]);
+    int16x8_t V13 = vtrn2q_s16(src[4], src[5]);
+    int16x8_t V14 = vtrn1q_s16(src[6], src[7]);
+    int16x8_t V15 = vtrn2q_s16(src[6], src[7]);
+    uint32x4_t V0  = vtrn1q_u32(vreinterpretq_u32_s16(V8),  vreinterpretq_u32_s16(V10));
+    uint32x4_t V1  = vtrn1q_u32(vreinterpretq_u32_s16(V9),  vreinterpretq_u32_s16(V11));
+    uint32x4_t V2  = vtrn2q_u32(vreinterpretq_u32_s16(V8),  vreinterpretq_u32_s16(V10));
+    uint32x4_t V3  = vtrn2q_u32(vreinterpretq_u32_s16(V9),  vreinterpretq_u32_s16(V11));
+    uint32x4_t V4  = vtrn1q_u32(vreinterpretq_u32_s16(V12), vreinterpretq_u32_s16(V14));
+    uint32x4_t V5  = vtrn1q_u32(vreinterpretq_u32_s16(V13), vreinterpretq_u32_s16(V15));
+    uint32x4_t V6  = vtrn2q_u32(vreinterpretq_u32_s16(V12), vreinterpretq_u32_s16(V14));
+    uint32x4_t V7  = vtrn2q_u32(vreinterpretq_u32_s16(V13), vreinterpretq_u32_s16(V15));
+    src[0] = vreinterpretq_s16_u64(vtrn1q_u64(vreinterpretq_u64_u32(V0), vreinterpretq_u64_u32(V4)));
+    src[1] = vreinterpretq_s16_u64(vtrn1q_u64(vreinterpretq_u64_u32(V1), vreinterpretq_u64_u32(V5)));
+    src[2] = vreinterpretq_s16_u64(vtrn1q_u64(vreinterpretq_u64_u32(V2), vreinterpretq_u64_u32(V6)));
+    src[3] = vreinterpretq_s16_u64(vtrn1q_u64(vreinterpretq_u64_u32(V3), vreinterpretq_u64_u32(V7)));
+    src[4] = vreinterpretq_s16_u64(vtrn2q_u64(vreinterpretq_u64_u32(V0), vreinterpretq_u64_u32(V4)));
+    src[5] = vreinterpretq_s16_u64(vtrn2q_u64(vreinterpretq_u64_u32(V1), vreinterpretq_u64_u32(V5)));
+    src[6] = vreinterpretq_s16_u64(vtrn2q_u64(vreinterpretq_u64_u32(V2), vreinterpretq_u64_u32(V6)));
+    src[7] = vreinterpretq_s16_u64(vtrn2q_u64(vreinterpretq_u64_u32(V3), vreinterpretq_u64_u32(V7)));
 }
 
 template<bool add>
@@ -98,8 +98,8 @@ void inverse_dct_template(uint8_t* plane, int16_t F[64], int stride) {
         if (add) {
             int16x8_t b0 = vshrq_n_s16(buffer[i * 2], 6);
             int16x8_t b1 = vshrq_n_s16(buffer[i * 2 + 1], 6);
-            b0 = vaddw_u8(vreinterpretq_u16_s16(b0), vld1_u8(&plane[(i * 2 + 0) * stride]));
-            b1 = vaddw_u8(vreinterpretq_u16_s16(b1), vld1_u8(&plane[(i * 2 + 1) * stride]));
+            b0 = vreinterpretq_s16_u16(vaddw_u8(vreinterpretq_u16_s16(b0), vld1_u8(&plane[(i * 2 + 0) * stride])));
+            b1 = vreinterpretq_s16_u16(vaddw_u8(vreinterpretq_u16_s16(b1), vld1_u8(&plane[(i * 2 + 1) * stride])));
             vst1_u8(&plane[(i * 2 + 0) * stride], vqmovun_s16(b0));
             vst1_u8(&plane[(i * 2 + 1) * stride], vqmovun_s16(b1));
         }
