@@ -21,7 +21,7 @@
 #endif
 
 #if defined(__GNUC__) || defined(__clang__)
-#define MP2V_INLINE                   inline //__attribute__((always_inline))
+#define MP2V_INLINE                   inline __attribute__((always_inline))
 #define ALIGN(n)                      __attribute__ ((aligned(n)))
 #else
 #define MP2V_INLINE                   __forceinline

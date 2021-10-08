@@ -3,20 +3,38 @@
 #include "common/cpu.hpp"
 
 template<mc_type_e mc_type>
-MP2V_INLINE uint8x8_t mc8_func_template_aarch64(uint8_t* src, uint32_t stride) {
+MP2V_INLINE uint8x16_t mc8_func_template_aarch64(uint8_t* src, uint32_t stride) {
     switch (mc_type)
     {
-    case MC_00:
-        return vld1_u8(src);
-    case MC_01:
-        return vrhadd_u8(vld1_u8(src), vld1_u8(&src[1]));
-    case MC_10:
-        return vrhadd_u8(vld1_u8(src), vld1_u8(&src[stride]));
-    case MC_11:
-        uint8x8_t tmp0 = vrhadd_u8(vld1_u8(src), vld1_u8(&src[1]));
-        uint8x8_t tmp1 = vrhadd_u8(vld1_u8(&src[stride]), vld1_u8(&src[stride + 1]));
-        return vrhadd_u8(tmp0, tmp1);
+    case MC_00: {
+            return vcombine_u8(vld1_u8(src), vld1_u8(src + stride));
+        }
+    case MC_01: {
+            const auto tmp0 = vcombine_u8(vld1_u8(src), vld1_u8(src + stride));
+            const auto tmp1 = vcombine_u8(vld1_u8(src + 1), vld1_u8(src + stride + 1));
+            return vrhaddq_u8(tmp0, tmp1);
+        }
+    case MC_10: {
+            const auto tmp = vld1_u8(src + stride);
+            const auto tmp0 = vcombine_u8(vld1_u8(src), tmp);
+            const auto tmp1 = vcombine_u8(tmp, vld1_u8(src + stride * 2));
+            return vrhaddq_u8(tmp0, tmp1);
+        }
+    case MC_11: {
+            const auto tmpa = vld1_u8(src + stride);
+            const auto tmp0 = vcombine_u8(vld1_u8(src), tmpa);
+            const auto tmp1 = vcombine_u8(tmpa, vld1_u8(src + stride * 2));
+            const auto tmpb = vld1_u8(src + stride + 1);
+            const auto tmp2 = vcombine_u8(vld1_u8(src + 1), tmpb);
+            const auto tmp3 = vcombine_u8(tmpb, vld1_u8(src + stride * 2 + 1));
+            return vrhaddq_u8(vrhaddq_u8(tmp0, tmp2), vrhaddq_u8(tmp1, tmp3));
+        }
     }
+}
+
+void vstore(uint8_t* src, uint8x16_t val, uint32_t stride) {
+    vst1_u8(src, vget_low_u8(val));
+    vst1_u8(src + stride, vget_high_u8(val));
 }
 
 template<mc_type_e mc_type>
@@ -56,10 +74,8 @@ template<mc_type_e mc_type>
 MP2V_INLINE void pred_mc8_template_aarch64(uint8_t* dst, uint8_t* src, uint32_t stride, int height)
 {
     for (int j = 0; j < height; j += 4) {
-        vst1_u8(dst + stride * 0, mc8_func_template_aarch64<mc_type>(src + stride * 0, stride));
-        vst1_u8(dst + stride * 1, mc8_func_template_aarch64<mc_type>(src + stride * 1, stride));
-        vst1_u8(dst + stride * 2, mc8_func_template_aarch64<mc_type>(src + stride * 2, stride));
-        vst1_u8(dst + stride * 3, mc8_func_template_aarch64<mc_type>(src + stride * 3, stride));
+        vstore(dst + stride * 0, mc8_func_template_aarch64<mc_type>(src + stride * 0, stride), stride);
+        vstore(dst + stride * 2, mc8_func_template_aarch64<mc_type>(src + stride * 2, stride), stride);
         dst += stride * 4; src += stride * 4;
     }
 }
@@ -99,10 +115,10 @@ MP2V_INLINE void bidir_mc16_template_aarch64(uint8_t* dst, uint8_t* src0, uint8_
 
 template<mc_type_e mc_type_src0, mc_type_e mc_type_src1>
 MP2V_INLINE void bidir_mc8_line_template_aarch64(uint8_t* dst, uint8_t* src0, uint8_t* src1, uint32_t stride) {
-    uint8x8_t tmp0 = mc8_func_template_aarch64<mc_type_src0>(src0, stride);
-    uint8x8_t tmp1 = mc8_func_template_aarch64<mc_type_src1>(src1, stride);
-    uint8x8_t res = vrhadd_u8(tmp0, tmp1);
-    vst1_u8(dst, res);
+    uint8x16_t tmp0 = mc8_func_template_aarch64<mc_type_src0>(src0, stride);
+    uint8x16_t tmp1 = mc8_func_template_aarch64<mc_type_src1>(src1, stride);
+    uint8x16_t res = vrhaddq_u8(tmp0, tmp1);
+    vstore(dst, res, stride);
 }
 
 template<mc_type_e mc_type_src0, mc_type_e mc_type_src1>
@@ -110,9 +126,7 @@ MP2V_INLINE void bidir_mc8_template_aarch64(uint8_t* dst, uint8_t* src0, uint8_t
 {
     for (int j = 0; j < height; j += 4) {
         bidir_mc8_line_template_aarch64<mc_type_src0, mc_type_src1>(dst + stride * 0, src0 + stride * 0, src1 + stride * 0, stride);
-        bidir_mc8_line_template_aarch64<mc_type_src0, mc_type_src1>(dst + stride * 1, src0 + stride * 1, src1 + stride * 1, stride);
         bidir_mc8_line_template_aarch64<mc_type_src0, mc_type_src1>(dst + stride * 2, src0 + stride * 2, src1 + stride * 2, stride);
-        bidir_mc8_line_template_aarch64<mc_type_src0, mc_type_src1>(dst + stride * 3, src0 + stride * 3, src1 + stride * 3, stride);
         dst += stride * 4; src0 += stride * 4; src1 += stride * 4;
     }
 }
