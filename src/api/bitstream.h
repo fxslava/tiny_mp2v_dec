@@ -4,6 +4,12 @@
 #include <vector>
 #include "core/common/cpu.hpp"
 
+#if defined(CPU_PLATFORM_X64)
+#include <emmintrin.h>
+#elif defined(CPU_PLATFORM_AARCH64)
+#include "arm_neon.h"
+#endif
+
 #define BITSTREAM(bs) \
 uint32_t*& bit_ptr = bs->get_ptr(); \
 uint64_t & bit_buf = bs->get_buf(); \
@@ -80,7 +86,6 @@ public:
     uint32_t & get_idx() { return buffer_idx; }
 private:
 #if defined(CPU_PLATFORM_X64)
-#include <emmintrin.h>
     void generate_start_codes_tbl() {
         static const __m128i pattern_0 = _mm_setzero_si128();
         static const __m128i pattern_1 = _mm_set1_epi8(1);
@@ -92,38 +97,6 @@ private:
             __m128i tmp1 = _mm_cmpeq_epi8(_mm_loadu_si128((__m128i*)(ptr + 1)), pattern_0);
             __m128i tmp2 = _mm_cmpeq_epi8(_mm_loadu_si128((__m128i*)(ptr + 2)), pattern_1);
             int mask = _mm_movemask_epi8(_mm_and_si128(_mm_and_si128(tmp0, tmp1), tmp2));
-
-            while (mask) {
-                int zcnt = bit_scan_forward(mask);
-                mask >>= (zcnt + 1);
-                ptr += zcnt;
-                start_code_tbl.push_back((uint32_t*)ptr++);
-            }
-        }
-    }
-#elif defined(CPU_PLATFORM_AARCH64)
-#include "arm_neon.h"
-    int vmovmaskq_u8(uint8x16_t input)
-    {
-        uint16x8_t high_bits = vreinterpretq_u16_u8(vshrq_n_u8(input, 7));
-        uint32x4_t paired16 = vreinterpretq_u32_u16(vsraq_n_u16(high_bits, high_bits, 7));
-        uint64x2_t paired32 = vreinterpretq_u64_u32(vsraq_n_u32(paired16, paired16, 14));
-        uint8x16_t paired64 = vreinterpretq_u8_u64 (vsraq_n_u64(paired32, paired32, 28));
-        return vgetq_lane_u8(paired64, 0) | ((int)vgetq_lane_u8(paired64, 8) << 8);
-    }
-
-    void generate_start_codes_tbl() {
-        static const uint8x16_t pattern_0 = vdupq_n_u8(0);
-        static const uint8x16_t pattern_1 = vdupq_n_u8(1);
-        static const uint8x8_t  half = vdup_n_u8(0x0f);
-
-        for (int i = 0; i < buffer_pool.size(); i += 4) {
-            uint8_t* ptr = (uint8_t*)&buffer_pool[i];
-
-            const uint8x16_t tmp0 = vceqq_u8(vld1q_u8(ptr + 0), pattern_0);
-            const uint8x16_t tmp1 = vceqq_u8(vld1q_u8(ptr + 1), pattern_0);
-            const uint8x16_t tmp2 = vceqq_u8(vld1q_u8(ptr + 2), pattern_1);
-            int mask = vmovmaskq_u8(vandq_u8(vandq_u8(tmp0, tmp1), tmp2));
 
             while (mask) {
                 int zcnt = bit_scan_forward(mask);
