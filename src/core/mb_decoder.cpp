@@ -6,7 +6,7 @@
 #include "scan.h"
 
 #if defined(CPU_PLATFORM_AARCH64)
-#include "idct_c.hpp"
+#include "idct_aarch64.hpp"
 #elif defined(CPU_PLATFORM_X64)
 #include "idct_sse2.hpp"
 #else
