@@ -8,7 +8,7 @@
 #if defined(CPU_PLATFORM_AARCH64)
 #include "idct_aarch64.hpp"
 #elif defined(CPU_PLATFORM_X64)
-#include "idct_c.hpp"
+#include "idct_sse2.hpp"
 #else
 #include "idct_c.hpp"
 #endif
@@ -107,7 +107,7 @@ static void parse_block(bitstream_reader_c* bs, int16_t* qfs, uint8_t W[64], uin
         else if ((buffer & 0xf8000000) == (0b00100 << (32 - 5))) {
             coeff_t coeff = (use_dct_one_table ? vlc_coeff_one_ex : vlc_coeff_zero_ex)[(buffer >> (32 - 8)) & 7];
             level = coeff.level;
-            sign = (buffer & (1 << (31 - 9))) ? -1 : 0;
+            sign = (buffer & (1 << (31 - 8))) ? -1 : 0;
             run = coeff.run;
             SKIP_BITS(9);
         }
@@ -164,20 +164,20 @@ MP2V_INLINE void decode_block_template(bitstream_reader_c* m_bs, uint8_t* plane,
 
 //decode_transform_template<chroma_format, alt_scan, true, true >(m_bs, cache.yuv_planes[REF_TYPE_SRC], cache.luma_stride, cache.W, coded_block_pattern, cache.quantiser_scale, cache.dct_dc_pred, cache.intra_dc_prec);
 template<int chroma_format, bool alt_scan, bool intra, bool add, bool use_dct_one_table>
-MP2V_INLINE void decode_transform_template(bitstream_reader_c* m_bs, macroblock_context_cache_t& cache, uint16_t coded_block_pattern) {
+MP2V_INLINE void decode_transform_template(bitstream_reader_c* m_bs, macroblock_context_cache_t& cache, uint16_t coded_block_pattern, bool dct_type) {
     auto yuv_planes      = cache.yuv_planes[REF_TYPE_SRC];
     auto &dct_dc_pred    = cache.dct_dc_pred;
     auto intra_dc_prec   = cache.intra_dc_prec;
     auto quantizer_scale = cache.quantiser_scale;
-    int chroma_stride    = cache.chroma_stride;
-    int stride           = cache.luma_stride;
+    int chroma_stride    = dct_type ? cache.chroma_stride << 1 : cache.chroma_stride;
+    int stride           = dct_type ? cache.luma_stride << 1 : cache.luma_stride;
     auto W               = cache.W;
 
     // Luma
     if (coded_block_pattern & (1 << 0)) decode_block_template<alt_scan, intra, add, use_dct_one_table, true>(m_bs, yuv_planes[0], stride, W[0], W[1], quantizer_scale, dct_dc_pred[0], intra_dc_prec);
     if (coded_block_pattern & (1 << 1)) decode_block_template<alt_scan, intra, add, use_dct_one_table, true>(m_bs, yuv_planes[0] + 8, stride, W[0], W[1], quantizer_scale, dct_dc_pred[0], intra_dc_prec);
-    if (coded_block_pattern & (1 << 2)) decode_block_template<alt_scan, intra, add, use_dct_one_table, true>(m_bs, yuv_planes[0] + 8 * stride, stride, W[0], W[1], quantizer_scale, dct_dc_pred[0], intra_dc_prec);
-    if (coded_block_pattern & (1 << 3)) decode_block_template<alt_scan, intra, add, use_dct_one_table, true>(m_bs, yuv_planes[0] + 8 * (stride + 1), stride, W[0], W[1], quantizer_scale, dct_dc_pred[0], intra_dc_prec);
+    if (coded_block_pattern & (1 << 2)) decode_block_template<alt_scan, intra, add, use_dct_one_table, true>(m_bs, yuv_planes[0] + (dct_type ? cache.luma_stride : 8 * stride), stride, W[0], W[1], quantizer_scale, dct_dc_pred[0], intra_dc_prec);
+    if (coded_block_pattern & (1 << 3)) decode_block_template<alt_scan, intra, add, use_dct_one_table, true>(m_bs, yuv_planes[0] + (dct_type ? cache.luma_stride : 8 * stride) + 8, stride, W[0], W[1], quantizer_scale, dct_dc_pred[0], intra_dc_prec);
 
     // Chroma format 4:2:0
     if (chroma_format >= 1) {
@@ -185,14 +185,14 @@ MP2V_INLINE void decode_transform_template(bitstream_reader_c* m_bs, macroblock_
         if (coded_block_pattern & (1 << 5)) decode_block_template<alt_scan, intra, add, use_dct_one_table>(m_bs, yuv_planes[2], chroma_stride, W[0], W[1], quantizer_scale, dct_dc_pred[2], intra_dc_prec); }
     // Chroma format 4:2:2
     if (chroma_format >= 2) {
-        if (coded_block_pattern & (1 << 6)) decode_block_template<alt_scan, intra, add, use_dct_one_table>(m_bs, yuv_planes[1] + 8 * chroma_stride, chroma_stride, W[2], W[3], quantizer_scale, dct_dc_pred[1], intra_dc_prec);
-        if (coded_block_pattern & (1 << 7)) decode_block_template<alt_scan, intra, add, use_dct_one_table>(m_bs, yuv_planes[2] + 8 * chroma_stride, chroma_stride, W[2], W[3], quantizer_scale, dct_dc_pred[2], intra_dc_prec); }
+        if (coded_block_pattern & (1 << 6)) decode_block_template<alt_scan, intra, add, use_dct_one_table>(m_bs, yuv_planes[1] + (dct_type ? cache.chroma_stride : 8 * chroma_stride), chroma_stride, W[2], W[3], quantizer_scale, dct_dc_pred[1], intra_dc_prec);
+        if (coded_block_pattern & (1 << 7)) decode_block_template<alt_scan, intra, add, use_dct_one_table>(m_bs, yuv_planes[2] + (dct_type ? cache.chroma_stride : 8 * chroma_stride), chroma_stride, W[2], W[3], quantizer_scale, dct_dc_pred[2], intra_dc_prec); }
     // Chroma format 4:4:4
     if (chroma_format == 3) {
         if (coded_block_pattern & (1 << 8))  decode_block_template<alt_scan, intra, add, use_dct_one_table>(m_bs, yuv_planes[1] + 8, chroma_stride, W[2], W[3], quantizer_scale, dct_dc_pred[1], intra_dc_prec);
         if (coded_block_pattern & (1 << 9))  decode_block_template<alt_scan, intra, add, use_dct_one_table>(m_bs, yuv_planes[2] + 8, chroma_stride, W[2], W[3], quantizer_scale, dct_dc_pred[2], intra_dc_prec);
-        if (coded_block_pattern & (1 << 10)) decode_block_template<alt_scan, intra, add, use_dct_one_table>(m_bs, yuv_planes[1] + 8 * (stride + 1), chroma_stride, W[2], W[3], quantizer_scale, dct_dc_pred[1], intra_dc_prec);
-        if (coded_block_pattern & (1 << 11)) decode_block_template<alt_scan, intra, add, use_dct_one_table>(m_bs, yuv_planes[2] + 8 * (stride + 1), chroma_stride, W[2], W[3], quantizer_scale, dct_dc_pred[2], intra_dc_prec); }
+        if (coded_block_pattern & (1 << 10)) decode_block_template<alt_scan, intra, add, use_dct_one_table>(m_bs, yuv_planes[1] + (dct_type ? 1 : 8) * stride + 8, chroma_stride, W[2], W[3], quantizer_scale, dct_dc_pred[1], intra_dc_prec);
+        if (coded_block_pattern & (1 << 11)) decode_block_template<alt_scan, intra, add, use_dct_one_table>(m_bs, yuv_planes[2] + (dct_type ? 1 : 8) * stride + 8, chroma_stride, W[2], W[3], quantizer_scale, dct_dc_pred[2], intra_dc_prec); }
 }
 
 template<int chroma_format, int plane_idx>
@@ -627,9 +627,9 @@ bool parse_macroblock_template(bitstream_reader_c* m_bs, macroblock_context_cach
     if (mb.macroblock_type & macroblock_pattern_bit)
         coded_block_pattern = parse_coded_block_pattern<chroma_format>(m_bs, mb);
     if ((mb.macroblock_type & macroblock_pattern_bit) || intra_block){
-        if (dct_one_table)    decode_transform_template<chroma_format, alt_scan, true, false, true >(m_bs, cache, coded_block_pattern);
-        else if (intra_block) decode_transform_template<chroma_format, alt_scan, true, false, false>(m_bs, cache, coded_block_pattern);
-        else                  decode_transform_template<chroma_format, alt_scan, false, true, false>(m_bs, cache, coded_block_pattern);
+        if (dct_one_table)    decode_transform_template<chroma_format, alt_scan, true, false, true >(m_bs, cache, coded_block_pattern, mb.dct_type);
+        else if (intra_block) decode_transform_template<chroma_format, alt_scan, true, false, false>(m_bs, cache, coded_block_pattern, mb.dct_type);
+        else                  decode_transform_template<chroma_format, alt_scan, false, true, false>(m_bs, cache, coded_block_pattern, mb.dct_type);
     }
 
     inc_macroblock_yuv_ptrs<chroma_format>(cache.yuv_planes);
