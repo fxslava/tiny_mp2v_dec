@@ -155,18 +155,9 @@ bool mp2v_picture_c::decode_slice() {
 }
 
 void mp2v_picture_c::init() {
-    if (m_quant_matrix_extension) {
-        for (int i = 0; i < 64; i++) {
-            if (m_quant_matrix_extension->load_intra_quantiser_matrix)            quantiser_matrices[0][i] = m_quant_matrix_extension->intra_quantiser_matrix[i];
-            if (m_quant_matrix_extension->load_non_intra_quantiser_matrix)        quantiser_matrices[1][i] = m_quant_matrix_extension->non_intra_quantiser_matrix[i];
-            if (m_quant_matrix_extension->load_chroma_intra_quantiser_matrix)     quantiser_matrices[2][i] = m_quant_matrix_extension->chroma_intra_quantiser_matrix[i];
-            if (m_quant_matrix_extension->load_chroma_non_intra_quantiser_matrix) quantiser_matrices[3][i] = m_quant_matrix_extension->chroma_non_intra_quantiser_matrix[i];
-        }
-    }
     auto& sext = m_dec->m_sequence_extension;
     auto& pcext = m_picture_coding_extension;
     auto& ph = m_picture_header;
-
     m_parse_macroblock_func = select_parse_macroblock_func(
         ph.picture_coding_type,
         pcext.picture_structure,
@@ -175,6 +166,24 @@ void mp2v_picture_c::init() {
         sext.chroma_format,
         pcext.q_scale_type,
         pcext.alternate_scan);
+
+    uint8_t tmp[4][64];
+    if (m_quant_matrix_extension) {
+        for (int i = 0; i < 64; i++) {
+            int j = g_scan[0][i];
+            if (m_quant_matrix_extension->load_intra_quantiser_matrix)            tmp[0][i] = m_quant_matrix_extension->intra_quantiser_matrix[j];
+            if (m_quant_matrix_extension->load_non_intra_quantiser_matrix)        tmp[1][i] = m_quant_matrix_extension->non_intra_quantiser_matrix[j];
+            if (m_quant_matrix_extension->load_chroma_intra_quantiser_matrix)     tmp[2][i] = m_quant_matrix_extension->chroma_intra_quantiser_matrix[j];
+            if (m_quant_matrix_extension->load_chroma_non_intra_quantiser_matrix) tmp[3][i] = m_quant_matrix_extension->chroma_non_intra_quantiser_matrix[j];
+        }
+        for (int i = 0; i < 64; i++) {
+            int j = g_shuffle[pcext.alternate_scan][i];
+            if (m_quant_matrix_extension->load_intra_quantiser_matrix)            quantiser_matrices[0][i] = tmp[0][j];
+            if (m_quant_matrix_extension->load_non_intra_quantiser_matrix)        quantiser_matrices[1][i] = tmp[1][j];
+            if (m_quant_matrix_extension->load_chroma_intra_quantiser_matrix)     quantiser_matrices[2][i] = tmp[2][j];
+            if (m_quant_matrix_extension->load_chroma_non_intra_quantiser_matrix) quantiser_matrices[3][i] = tmp[3][j];
+        }
+    }
 }
 
 #ifdef _DEBUG

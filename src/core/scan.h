@@ -5,6 +5,7 @@
 
 extern uint8_t g_scan_trans[2][64];
 extern uint8_t g_scan[2][64];
+extern uint8_t g_shuffle[2][64];
 
 // PLANE C routines
 MP2V_INLINE void inverse_alt_scan_c(int16_t QF[64], int16_t QFS[64]) {
