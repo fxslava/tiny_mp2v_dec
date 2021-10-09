@@ -73,7 +73,7 @@ MP2V_INLINE int16_t parse_dct_dc_coeff(bitstream_reader_c* bs, uint16_t& dct_dc_
 
 template<bool use_dct_one_table, bool intra, bool alt_scan>
 static void parse_block(bitstream_reader_c* bs, int16_t* qfs, uint8_t W[64], uint8_t quantizer_scale) {
-    int run = 0, level = 0, i = intra ? 1 : 0, sign = 0;
+    int run = 0, level = 0, i = intra ? 1 : 0, sign = 0, sum = 0;
     BITSTREAM(bs);
 
     if (!use_dct_one_table) {
@@ -81,8 +81,8 @@ static void parse_block(bitstream_reader_c* bs, int16_t* qfs, uint8_t W[64], uin
         uint32_t coef = GET_NEXT_BITS(2);
         if (coef & 2) {
             sign = -(coef & 1);
-            int16_t val = (W[i] * quantizer_scale) >> 5;
-            qfs[i++] = (val ^ sign) - sign;
+            int16_t val = (3 * W[i] * quantizer_scale) >> 5;
+            sum = qfs[i] = (val ^ sign) - sign;
             SKIP_BITS(2);
         }
     }
@@ -143,9 +143,13 @@ static void parse_block(bitstream_reader_c* bs, int16_t* qfs, uint8_t W[64], uin
         else       val = ((2 * level + 1) * W[i] * quantizer_scale) >> 5;
         val = (val ^ sign) - sign; // apply sign
 
-        qfs[idx] = std::max<int16_t>(std::min<int16_t>(val, (int16_t)2047), (int16_t)-2048);
+        sum += (qfs[idx] = std::max<int16_t>(std::min<int16_t>(val, (int16_t)2047), (int16_t)-2048));
         i++;
     }
+
+    sum &= 1;
+    sum ^= 1;
+    qfs[63] ^= sum;
 
     UPDATE_BITS();
 }

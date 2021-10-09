@@ -33,14 +33,14 @@ MP2V_INLINE void idct_1d_ref(int16_t* dst, int16_t* src) {
         const int16_t v18 = mul_coeff_s16(v19 - v20, 25079); //(v19 - v20) * s1[4]; /2
         const int16_t v12 = v18 - mul_coeff_s16(v19, 85626); // v18 - v19 * s1[3];  /2
         const int16_t v14 = mul_coeff_s16(v20, 35468) - v18; // v20 * s1[1] - v18); /2
-        const int16_t v6 = (v14 << 1) - v7;                 // v14 - v7            /4
-        const int16_t v5 = mul_coeff_s16(v13, 92681) - v6;  // v13 / s1[2] - v6;   /4
-        const int16_t v4 = v5 + (v12 << 1);                 // v5 + v12;           /4
+        const int16_t v6  = (v14 << 1) - v7;                 // v14 - v7            /4
+        const int16_t v5  = mul_coeff_s16(v13, 92681) - v6;  // v13 / s1[2] - v6;   /4
+        const int16_t v4  = v5 + (v12 << 1);                 // v5 + v12;           /4
         const int16_t v10 = mul_coeff_s16(v17, 92681) - v11; // v17 / s1[0] - v11;  /2
-        const int16_t v0 = v8 + v11; // /4
-        const int16_t v1 = v9 + v10; // /4
-        const int16_t v2 = v9 - v10; // /4
-        const int16_t v3 = v8 - v11; // /4
+        const int16_t v0  = v8 + v11; // /4
+        const int16_t v1  = v9 + v10; // /4
+        const int16_t v2  = v9 - v10; // /4
+        const int16_t v3  = v8 - v11; // /4
         // step 3
         dst[0 * 8 + i] = v0 + v7; // /8
         dst[1 * 8 + i] = v1 + v6; // /8
