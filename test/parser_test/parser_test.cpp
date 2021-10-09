@@ -39,6 +39,7 @@ int main(int argc, char* argv[])
     config.chroma_format = 2;
     config.frames_pool_size = 16;
     config.pictures_pool_size = 9; // I + P + 7B
+    config.reordering = true;
 
     std::string *bitstream_file, *output_file;
     std::vector<arg_desc_t> args_desc{

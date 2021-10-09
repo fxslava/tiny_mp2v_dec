@@ -10,6 +10,7 @@
 #include "api/bitstream.h"
 #include "mb_decoder.h"
 
+constexpr int MAX_B_FRAMES = 8;
 constexpr int CACHE_LINE = 64;
 
 class mp2v_picture_c;
@@ -28,6 +29,7 @@ struct decoder_config_t {
     int chroma_format;
     int frames_pool_size;
     int pictures_pool_size;
+    bool reordering;
 };
 
 class frame_c {
@@ -98,9 +100,15 @@ public:
         m_output_frames.push(frame);
     }
 protected:
+    void flush_mini_gop();
+    void out_pic(mp2v_picture_c* cur_pic);
+
     bitstream_reader_c* m_bs;
 
     // stream data
+    bool reordering = true;
+    int cur_num_b_frames = 0;
+    frame_c* b_frames[MAX_B_FRAMES] = { 0 };
     frame_c* ref_frames[2] = { 0 };
     ThreadSafeQ<frame_c*> m_frames_pool;
     ThreadSafeQ<frame_c*> m_output_frames;

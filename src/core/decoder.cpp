@@ -256,6 +256,34 @@ bool mp2v_decoder_c::decode_extension_data(mp2v_picture_c* pic) {
     return true;
 }
 
+void mp2v_decoder_c::flush_mini_gop() {
+    for (int i = 0; i < cur_num_b_frames; i++)
+        push_frame(b_frames[i]);
+    if (ref_frames[1])
+        push_frame(ref_frames[1]);
+    cur_num_b_frames = 0;
+}
+
+void mp2v_decoder_c::out_pic(mp2v_picture_c* cur_pic) {
+    auto* frame = cur_pic->get_frame();
+    if (!reordering)
+        push_frame(frame);
+    else
+    {
+        if (cur_pic->m_picture_header.picture_coding_type == picture_coding_type_bidir)
+            b_frames[cur_num_b_frames++] = frame;
+        else {
+            for (int i = 0; i < cur_num_b_frames; i++)
+                push_frame(b_frames[i]);
+            cur_num_b_frames = 0;
+            if (ref_frames[0])
+                push_frame(ref_frames[0]);
+        }
+    }
+    cur_pic->attach(nullptr);
+    m_pictures_pool.push_back(cur_pic);
+}
+
 bool mp2v_decoder_c::decode() {
     bool new_picture = false;
     mp2v_picture_c* cur_pic = nullptr;
@@ -268,17 +296,13 @@ bool mp2v_decoder_c::decode() {
         case group_start_code:     parse_group_of_pictures_header(m_bs, *(m_group_of_pictures_header = new group_of_pictures_header_t)); break;
         case picture_start_code:   {
             new_picture = true;
-            if (cur_pic) {
-                auto* frame = cur_pic->get_frame();
-                push_frame(frame);
-                cur_pic->attach(nullptr);
-                m_pictures_pool.push_back(cur_pic);
-            }
+            if (cur_pic) out_pic(cur_pic);
 
             static int num_pics = 0;
             num_pics++;
             if (num_pics > 99)
             {
+                flush_mini_gop();
                 push_frame(nullptr);
                 return true;
             }
@@ -318,6 +342,7 @@ bool mp2v_decoder_c::decoder_init(decoder_config_t* config) {
     int width = config->width;
     int height = config->height;
     int chroma_format = config->chroma_format;
+    reordering = config->reordering;
 
     for (int i = 0; i < pool_size; i++)
         m_frames_pool.push(new frame_c(width, height, chroma_format));
