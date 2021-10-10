@@ -306,16 +306,6 @@ bool mp2v_decoder_c::decode() {
         case picture_start_code:   {
             new_picture = true;
             if (cur_pic) out_pic(cur_pic);
-
-            static int num_pics = 0;
-            num_pics++;
-            if (num_pics > 99)
-            {
-                flush_mini_gop();
-                push_frame(nullptr);
-                return true;
-            }
-
             frame_c* frame = nullptr;
             m_frames_pool.pop(frame);
             cur_pic = m_pictures_pool.back();
@@ -331,7 +321,9 @@ bool mp2v_decoder_c::decode() {
         case user_data_start_code: decode_user_data(); break;
         case sequence_error_code:
         case sequence_end_code:
-            break;
+            flush_mini_gop();
+            push_frame(nullptr);
+            return true;
         default:
             if ((start_code >= slice_start_code_min) && (start_code <= slice_start_code_max))
             {

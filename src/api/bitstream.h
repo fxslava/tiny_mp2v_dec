@@ -71,10 +71,14 @@ public:
     }
 
     MP2V_INLINE uint32_t get_next_start_code() {
-        buffer_idx = 32;
-        buffer_ptr = start_code_tbl[start_code_idx] + 1;
-        buffer = (uint64_t)bswap_32(*start_code_tbl[start_code_idx++]);
-        return buffer;
+        if (start_code_idx < start_code_tbl.size()) {
+            buffer_idx = 32;
+            buffer_ptr = start_code_tbl[start_code_idx] + 1;
+            buffer = (uint64_t)bswap_32(*start_code_tbl[start_code_idx++]);
+            return buffer;
+        }
+        else
+            return 0x000000b7; // sequence_end_code;
     }
 
     MP2V_INLINE void skip_bits(int len) {
