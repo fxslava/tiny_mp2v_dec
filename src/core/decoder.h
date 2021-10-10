@@ -107,8 +107,6 @@ protected:
 
     // stream data
     bool reordering = true;
-    int cur_num_b_frames = 0;
-    frame_c* b_frames[MAX_B_FRAMES] = { 0 };
     frame_c* ref_frames[2] = { 0 };
     ThreadSafeQ<frame_c*> m_frames_pool;
     ThreadSafeQ<frame_c*> m_output_frames;

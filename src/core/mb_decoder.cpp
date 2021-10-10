@@ -354,6 +354,7 @@ static bool parse_modes(bitstream_reader_c* m_bs, macroblock_t& mb, int spatial_
             mb.field_motion_type = m_bs->read_next_bits(2);
         }
     }
+    if (frame_pred_frame_dct) mb.dct_type = 0;
     if ((picture_structure == picture_structure_framepic) && (frame_pred_frame_dct == 0) &&
         ((mb.macroblock_type & macroblock_intra_bit) || (mb.macroblock_type & macroblock_pattern_bit))) {
         mb.dct_type = m_bs->read_next_bits(1);

@@ -266,28 +266,17 @@ bool mp2v_decoder_c::decode_extension_data(mp2v_picture_c* pic) {
 }
 
 void mp2v_decoder_c::flush_mini_gop() {
-    for (int i = 0; i < cur_num_b_frames; i++)
-        push_frame(b_frames[i]);
     if (ref_frames[1])
         push_frame(ref_frames[1]);
-    cur_num_b_frames = 0;
 }
 
 void mp2v_decoder_c::out_pic(mp2v_picture_c* cur_pic) {
     auto* frame = cur_pic->get_frame();
-    if (!reordering)
+    if (cur_pic->m_picture_header.picture_coding_type == picture_coding_type_bidir || !reordering)
         push_frame(frame);
-    else
-    {
-        if (cur_pic->m_picture_header.picture_coding_type == picture_coding_type_bidir)
-            b_frames[cur_num_b_frames++] = frame;
-        else {
-            for (int i = 0; i < cur_num_b_frames; i++)
-                push_frame(b_frames[i]);
-            cur_num_b_frames = 0;
-            if (ref_frames[0])
-                push_frame(ref_frames[0]);
-        }
+    else {
+        if (ref_frames[0])
+            push_frame(ref_frames[0]);
     }
     cur_pic->attach(nullptr);
     m_pictures_pool.push_back(cur_pic);
