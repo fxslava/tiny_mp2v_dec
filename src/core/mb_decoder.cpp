@@ -82,7 +82,7 @@ static void parse_block(bitstream_reader_c* bs, int16_t* qfs, uint8_t W[64], uin
         if (coef & 2) {
             sign = -(coef & 1);
             int16_t val = (3 * W[i] * quantizer_scale) >> 5;
-            sum = qfs[i] = (val ^ sign) - sign;
+            sum = qfs[i++] = (val ^ sign) - sign;
             SKIP_BITS(2);
         }
     }
