@@ -169,7 +169,7 @@ MP2V_INLINE void decode_transform_template(bitstream_reader_c* m_bs, macroblock_
     auto &dct_dc_pred    = cache.dct_dc_pred;
     auto intra_dc_prec   = cache.intra_dc_prec;
     auto quantizer_scale = cache.quantiser_scale;
-    int chroma_stride    = dct_type ? cache.chroma_stride << 1 : cache.chroma_stride;
+    int chroma_stride    = (dct_type && (chroma_format != 1)) ? cache.chroma_stride << 1 : cache.chroma_stride;
     int stride           = dct_type ? cache.luma_stride << 1 : cache.luma_stride;
     auto W               = cache.W;
 
