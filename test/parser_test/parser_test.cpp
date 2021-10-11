@@ -11,6 +11,8 @@
 #include <ittnotify.h>
 #endif
 
+std::vector<uint32_t, AlignmentAllocator<uint8_t, 32>> buffer_pool;
+
 void stream_writer_func(mp2v_decoder_c* mp2v_decoder, std::string output_file) {
     FILE* fp = fopen(output_file.c_str(), "wb");
 
@@ -29,6 +31,23 @@ void stream_writer_func(mp2v_decoder_c* mp2v_decoder, std::string output_file) {
     }
 
     fclose(fp);
+}
+
+void load_bitstream(std::string input_file) {
+    std::ifstream fp(input_file, std::ios::binary);
+
+    // Calculate size of buffer
+    fp.seekg(0, std::ios_base::end);
+    std::size_t size = fp.tellg();
+    size = ((size + 15) & (~15)) + 2;
+    fp.seekg(0, std::ios_base::beg);
+
+    // Allocate buffer
+    buffer_pool.resize(size / sizeof(uint32_t));
+
+    // read file
+    fp.read((char*)&buffer_pool[0], size);
+    fp.close();
 }
 
 int main(int argc, char* argv[])
@@ -50,8 +69,8 @@ int main(int argc, char* argv[])
     cmd_parser.parse(argc, argv);
 
     if (bitstream_file) {
-        bitstream_reader_c stream_reader(*bitstream_file);
-        mp2v_decoder_c mp2v_decoder(&stream_reader);
+        load_bitstream(*bitstream_file);
+        mp2v_decoder_c mp2v_decoder;
 
         std::thread stream_writer(stream_writer_func, &mp2v_decoder, *output_file);
         mp2v_decoder.decoder_init(&config);
@@ -60,7 +79,7 @@ int main(int argc, char* argv[])
 
 #if defined(_M_X64)
         __itt_resume();
-        mp2v_decoder.decode();
+        mp2v_decoder.decode((uint8_t*)&buffer_pool[0], buffer_pool.size() * 4);
         __itt_pause();
 #else
         mp2v_decoder.decode();

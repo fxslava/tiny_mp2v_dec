@@ -50,7 +50,6 @@ private:
 };
 
 class mp2v_picture_c {
-    friend class mp2v_slice_c;
 public:
     mp2v_picture_c(bitstream_reader_c* bitstream, mp2v_decoder_c* decoder, frame_c* frame) : m_bs(bitstream), m_dec(decoder), m_frame(frame) {};
     void init();
@@ -83,10 +82,10 @@ public:
 class mp2v_decoder_c {
     friend class mp2v_picture_c;
 public:
-    mp2v_decoder_c(bitstream_reader_c* bitstream) : m_bs(bitstream), m_frames_pool(16), m_output_frames(16) {};
+    mp2v_decoder_c() : m_frames_pool(16), m_output_frames(16) {};
     ~mp2v_decoder_c();
     bool decoder_init(decoder_config_t* config);
-    bool decode();
+    bool decode(uint8_t* buffer, int len);
     bool decode_user_data();
     bool decode_extension_data(mp2v_picture_c* pic);
 
@@ -100,10 +99,11 @@ public:
         m_output_frames.push(frame);
     }
 protected:
+    uint32_t get_next_start_code();
     void flush_mini_gop();
     void out_pic(mp2v_picture_c* cur_pic);
 
-    bitstream_reader_c* m_bs;
+    bitstream_reader_c m_bs;
 
     // stream data
     bool reordering = true;
@@ -111,7 +111,8 @@ protected:
     ThreadSafeQ<frame_c*> m_frames_pool;
     ThreadSafeQ<frame_c*> m_output_frames;
     std::vector<mp2v_picture_c*> m_pictures_pool;
-
+    uint32_t  start_code_idx = 0;
+    std::vector<uint32_t*> start_code_tbl;
 public:
     std::vector<uint8_t> user_data;
     // headers

@@ -5,6 +5,7 @@
 #include "mp2v_hdr.h"
 #include "mp2v_vlc.h"
 #include "misc.hpp"
+#include "start_codes_search.hpp"
 
 #define CHECK(p) { if (!(p)) return false; }
 
@@ -216,44 +217,44 @@ void mp2v_picture_c::dump_mvs(const char* dump_filename) {
 #endif
 
 bool mp2v_decoder_c::decode_user_data() {
-    while (m_bs->get_next_bits(vlc_start_code.len) != vlc_start_code.value) {
-        uint8_t data = m_bs->read_next_bits(8);
+    while (m_bs.get_next_bits(vlc_start_code.len) != vlc_start_code.value) {
+        uint8_t data = m_bs.read_next_bits(8);
         user_data.push_back(data);
     }
     return true;
 }
 
 bool mp2v_decoder_c::decode_extension_data(mp2v_picture_c* pic) {
-    m_bs->skip_bits(32);
-    uint8_t ext_id = m_bs->get_next_bits(4);
+    m_bs.skip_bits(32);
+    uint8_t ext_id = m_bs.get_next_bits(4);
     switch (ext_id)
     {
     case sequence_extension_id:
-        parse_sequence_extension(m_bs, m_sequence_extension); // <--
+        parse_sequence_extension(&m_bs, m_sequence_extension); // <--
         break;
     case sequence_display_extension_id:
-        parse_sequence_display_extension(m_bs, *(m_sequence_display_extension = new sequence_display_extension_t));
+        parse_sequence_display_extension(&m_bs, *(m_sequence_display_extension = new sequence_display_extension_t));
         break;
     case sequence_scalable_extension_id:
-        parse_sequence_scalable_extension(m_bs, *(m_sequence_scalable_extension = new sequence_scalable_extension_t));
+        parse_sequence_scalable_extension(&m_bs, *(m_sequence_scalable_extension = new sequence_scalable_extension_t));
         break;
     case quant_matrix_extension_id:
-        parse_quant_matrix_extension(m_bs, *(pic->m_quant_matrix_extension = new quant_matrix_extension_t));
+        parse_quant_matrix_extension(&m_bs, *(pic->m_quant_matrix_extension = new quant_matrix_extension_t));
         break;
     case copiright_extension_id:
-        parse_copyright_extension(m_bs, *(pic->m_copyright_extension = new copyright_extension_t));
+        parse_copyright_extension(&m_bs, *(pic->m_copyright_extension = new copyright_extension_t));
         break;
     case picture_coding_extension_id:
-        parse_picture_coding_extension(m_bs, pic->m_picture_coding_extension);
+        parse_picture_coding_extension(&m_bs, pic->m_picture_coding_extension);
         break;
     case picture_display_extension_id:
-        parse_picture_display_extension(m_bs, *(pic->m_picture_display_extension = new picture_display_extension_t), m_sequence_extension, pic->m_picture_coding_extension);
+        parse_picture_display_extension(&m_bs, *(pic->m_picture_display_extension = new picture_display_extension_t), m_sequence_extension, pic->m_picture_coding_extension);
         break;
     case picture_spatial_scalable_extension_id:
-        parse_picture_spatial_scalable_extension(m_bs, *(pic->m_picture_spatial_scalable_extension = new picture_spatial_scalable_extension_t));
+        parse_picture_spatial_scalable_extension(&m_bs, *(pic->m_picture_spatial_scalable_extension = new picture_spatial_scalable_extension_t));
         break;
     case picture_temporal_scalable_extension_id:
-        parse_picture_temporal_scalable_extension(m_bs, *(pic->m_picture_temporal_scalable_extension = new picture_temporal_scalable_extension_t));
+        parse_picture_temporal_scalable_extension(&m_bs, *(pic->m_picture_temporal_scalable_extension = new picture_temporal_scalable_extension_t));
         break;
     case picture_camera_parameters_extension_id:
         //parse_camera_parameters_extension();
@@ -282,23 +283,42 @@ void mp2v_decoder_c::out_pic(mp2v_picture_c* cur_pic) {
     m_pictures_pool.push_back(cur_pic);
 }
 
-bool mp2v_decoder_c::decode() {
+MP2V_INLINE uint32_t mp2v_decoder_c::get_next_start_code() {
+    auto& buffer     = m_bs.get_buf();
+    auto& buffer_idx = m_bs.get_idx();
+    auto& buffer_ptr = m_bs.get_ptr();
+
+    if (start_code_idx < start_code_tbl.size()) {
+        buffer_idx = 32;
+        buffer_ptr = start_code_tbl[start_code_idx] + 1;
+        buffer = (uint64_t)bswap_32(*start_code_tbl[start_code_idx++]);
+        return buffer;
+    }
+    else
+        return 0x000000b7; // sequence_end_code;
+}
+
+bool mp2v_decoder_c::decode(uint8_t* buffer, int len) {
+
+    m_bs.set_bitstream_buffer((uint32_t*)buffer);
+    generate_start_codes_tbl(buffer, buffer + len, &start_code_tbl);
+
     bool new_picture = false;
     mp2v_picture_c* cur_pic = nullptr;
 
     while (1) {
-        uint8_t start_code = (uint8_t)(m_bs->get_next_start_code() & 0xff);
+        uint8_t start_code = (uint8_t)(get_next_start_code() & 0xff);
         switch (start_code) {
-        case sequence_header_code: parse_sequence_header(m_bs, m_sequence_header); break;
+        case sequence_header_code: parse_sequence_header(&m_bs, m_sequence_header); break;
         case extension_start_code: decode_extension_data(cur_pic);                 break;
-        case group_start_code:     parse_group_of_pictures_header(m_bs, *(m_group_of_pictures_header = new group_of_pictures_header_t)); break;
+        case group_start_code:     parse_group_of_pictures_header(&m_bs, *(m_group_of_pictures_header = new group_of_pictures_header_t)); break;
         case picture_start_code:   {
             new_picture = true;
             if (cur_pic) out_pic(cur_pic);
             frame_c* frame = nullptr;
             m_frames_pool.pop(frame);
             cur_pic = m_pictures_pool.back();
-            parse_picture_header(m_bs, cur_pic->m_picture_header);
+            parse_picture_header(&m_bs, cur_pic->m_picture_header);
             if (cur_pic->m_picture_header.picture_coding_type == picture_coding_type_pred || cur_pic->m_picture_header.picture_coding_type == picture_coding_type_intra) {
                 ref_frames[0] = ref_frames[1];
                 ref_frames[1] = frame;
@@ -338,7 +358,7 @@ bool mp2v_decoder_c::decoder_init(decoder_config_t* config) {
         m_frames_pool.push(new frame_c(width, height, chroma_format));
 
     for (int i = 0; i < num_pics; i++)
-        m_pictures_pool.push_back(new mp2v_picture_c(m_bs, this, nullptr));
+        m_pictures_pool.push_back(new mp2v_picture_c(&m_bs, this, nullptr));
 
     return true;
 }
