@@ -23,8 +23,6 @@ spatial_temporal_weights_classes_t local_spatial_temporal_weights_classes_tbl[4]
     {{{2, 0}, 2, 1}, {{2, 1}, 2, 0}, {{1, 2}, 3, 0}, {{1, 1}, 1, 0} }
 };
 
-uint8_t color_component_index[12] = { 0, 0, 0, 0, 1, 2, 1, 2, 1, 2, 1, 2 };
-
 frame_c::frame_c(int width, int height, int chroma_format) {
     m_stride[0] = (width + CACHE_LINE - 1) & ~(CACHE_LINE - 1);
     m_width [0] = width;
@@ -96,21 +94,7 @@ bool mp2v_picture_c::decode_slice() {
     slice_t slice;
 
     // decode slice header
-    slice.slice_start_code = m_bs->read_next_bits(32);
-    if (sh.vertical_size_value > 2800)
-        slice.slice_vertical_position_extension = m_bs->read_next_bits(3);
-    if (seq->m_sequence_scalable_extension && seq->m_sequence_scalable_extension->scalable_mode == scalable_mode_data_partitioning)
-        slice.priority_breakpoint = m_bs->read_next_bits(7);
-    slice.quantiser_scale_code = m_bs->read_next_bits(5);
-    if (m_bs->get_next_bits(1) == 1) {
-        slice.slice_extension_flag = m_bs->read_next_bits(1);
-        slice.intra_slice = m_bs->read_next_bits(1);
-        slice.slice_picture_id_enable = m_bs->read_next_bits(1);
-        slice.slice_picture_id = m_bs->read_next_bits(6);
-        while (m_bs->get_next_bits(1) == 1) {
-            m_bs->skip_bits(9);
-        }
-    }
+    parse_slice_header(m_bs, slice, sh, seq->m_sequence_scalable_extension);
 
     // calculate row position of the slice
     int mb_row = 0;
@@ -300,7 +284,7 @@ MP2V_INLINE uint32_t mp2v_decoder_c::get_next_start_code() {
 
 bool mp2v_decoder_c::decode(uint8_t* buffer, int len) {
 
-    m_bs.set_bitstream_buffer((uint32_t*)buffer);
+    m_bs.set_bitstream_buffer(buffer);
     generate_start_codes_tbl(buffer, buffer + len, &start_code_tbl);
 
     bool new_picture = false;
@@ -310,7 +294,7 @@ bool mp2v_decoder_c::decode(uint8_t* buffer, int len) {
         uint8_t start_code = (uint8_t)(get_next_start_code() & 0xff);
         switch (start_code) {
         case sequence_header_code: parse_sequence_header(&m_bs, m_sequence_header); break;
-        case extension_start_code: decode_extension_data(cur_pic);                 break;
+        case extension_start_code: decode_extension_data(cur_pic);                  break;
         case group_start_code:     parse_group_of_pictures_header(&m_bs, *(m_group_of_pictures_header = new group_of_pictures_header_t)); break;
         case picture_start_code:   {
             new_picture = true;

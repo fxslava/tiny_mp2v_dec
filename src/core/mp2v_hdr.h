@@ -341,3 +341,22 @@ bool parse_picture_display_extension(bitstream_reader_c* m_bs, picture_display_e
 bool parse_picture_temporal_scalable_extension(bitstream_reader_c* m_bs, picture_temporal_scalable_extension_t& ptsext);
 bool parse_picture_spatial_scalable_extension(bitstream_reader_c* m_bs, picture_spatial_scalable_extension_t& pssext);
 bool parse_copyright_extension(bitstream_reader_c* m_bs, copyright_extension_t& crext);
+
+MP2V_INLINE bool parse_slice_header(bitstream_reader_c* m_bs, slice_t& slice, sequence_header_t& sh, sequence_scalable_extension_t* sequence_scalable_extension) {
+    slice.slice_start_code = m_bs->read_next_bits(32);
+    if (sh.vertical_size_value > 2800)
+        slice.slice_vertical_position_extension = m_bs->read_next_bits(3);
+    if (sequence_scalable_extension && sequence_scalable_extension->scalable_mode == scalable_mode_data_partitioning)
+        slice.priority_breakpoint = m_bs->read_next_bits(7);
+    slice.quantiser_scale_code = m_bs->read_next_bits(5);
+    if (m_bs->get_next_bits(1) == 1) {
+        slice.slice_extension_flag = m_bs->read_next_bits(1);
+        slice.intra_slice = m_bs->read_next_bits(1);
+        slice.slice_picture_id_enable = m_bs->read_next_bits(1);
+        slice.slice_picture_id = m_bs->read_next_bits(6);
+        while (m_bs->get_next_bits(1) == 1) {
+            m_bs->skip_bits(9);
+        }
+    }
+    return true;
+}

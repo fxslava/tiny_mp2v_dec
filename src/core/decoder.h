@@ -103,9 +103,8 @@ protected:
     void flush_mini_gop();
     void out_pic(mp2v_picture_c* cur_pic);
 
-    bitstream_reader_c m_bs;
-
     // stream data
+    bitstream_reader_c m_bs;
     bool reordering = true;
     frame_c* ref_frames[2] = { 0 };
     ThreadSafeQ<frame_c*> m_frames_pool;
