@@ -1,7 +1,8 @@
 // Copyright © 2021 Vladislav Ovchinnikov. All rights reserved.
 #pragma once
 #include <vector>
-#include <deque>
+#include <atomic>
+#include <thread>
 #include <mutex>
 #include <condition_variable>
 
@@ -10,6 +11,9 @@
 #include "api/bitstream.h"
 #include "mb_decoder.h"
 
+#define MP2V_MT
+
+constexpr int MAX_NUM_THREADS = 256;
 constexpr int MAX_B_FRAMES = 8;
 constexpr int CACHE_LINE = 64;
 
@@ -23,12 +27,18 @@ public:
 };
 #endif
 
+struct slice_task_t {
+    macroblock_context_cache_t task_cache;
+    bitstream_reader_c bs;
+};
+
 struct decoder_config_t {
     int width;
     int height;
     int chroma_format;
     int frames_pool_size;
     int pictures_pool_size;
+    int num_threads;
     bool reordering;
 };
 
@@ -54,7 +64,7 @@ public:
     mp2v_picture_c(bitstream_reader_c* bitstream, mp2v_decoder_c* decoder, frame_c* frame) : m_bs(bitstream), m_dec(decoder), m_frame(frame) {};
     void init();
     void attach(frame_c* frame) { m_frame = frame; }
-    bool decode_slice();
+    template <bool weak = false> bool decode_slice();
     frame_c* get_frame() { return m_frame; }
 
 private:
@@ -63,6 +73,7 @@ private:
     uint8_t quantiser_matrices[4][64];
     parse_macroblock_func_t m_parse_macroblock_func = nullptr;
     frame_c* m_frame;
+
 public:
     // headers
     picture_header_t m_picture_header = { 0 }; //mandatory
@@ -73,6 +84,11 @@ public:
     picture_spatial_scalable_extension_t* m_picture_spatial_scalable_extension = nullptr;
     picture_temporal_scalable_extension_t* m_picture_temporal_scalable_extension = nullptr;
 
+#ifdef MP2V_MT
+    std::vector<slice_task_t> picture_slices_tasks;
+    bool decode_task(int task_id);
+    void reset_task_list() { picture_slices_tasks.clear(); }
+#endif
 #ifdef _DEBUG
     std::vector<slice_data_c> m_slices;
     void dump_mvs(const char* dump_filename);
@@ -82,39 +98,44 @@ public:
 class mp2v_decoder_c {
     friend class mp2v_picture_c;
 public:
-    mp2v_decoder_c() : m_frames_pool(16), m_output_frames(16) {};
+    mp2v_decoder_c() : m_frames_pool(100), m_output_frames(100) {};
     ~mp2v_decoder_c();
     bool decoder_init(decoder_config_t* config);
     bool decode(uint8_t* buffer, int len);
+    void get_decoded_frame(frame_c*& frame) { m_output_frames.pop(frame); }
+    void release_frame(frame_c* frame) { m_frames_pool.push(frame); }
+
+protected:
     bool decode_user_data();
     bool decode_extension_data(mp2v_picture_c* pic);
-
-    void get_decoded_frame(frame_c*& frame) {
-        m_output_frames.pop(frame);
-    }
-    void release_frame(frame_c* frame) {
-        m_frames_pool.push(frame);
-    }
-    void push_frame(frame_c* frame) {
-        m_output_frames.push(frame);
-    }
-protected:
+    void push_frame(frame_c* frame) { m_output_frames.push(frame); }
     uint32_t get_next_start_code();
     void flush_mini_gop();
     void out_pic(mp2v_picture_c* cur_pic);
-
-    // stream data
-    bitstream_reader_c m_bs;
     bool reordering = true;
+    bitstream_reader_c m_bs;
     frame_c* ref_frames[2] = { 0 };
     ThreadSafeQ<frame_c*> m_frames_pool;
     ThreadSafeQ<frame_c*> m_output_frames;
     std::vector<mp2v_picture_c*> m_pictures_pool;
-    uint32_t  start_code_idx = 0;
     std::vector<uint32_t*> start_code_tbl;
+    uint32_t  start_code_idx = 0;
+#ifdef MP2V_MT
+    static void threadpool_task_scheduler(mp2v_decoder_c *dec);
+    void flush(mp2v_picture_c* cur_pic, int num_slices);
+    mp2v_picture_c* processing_picture = nullptr;
+    std::atomic<int> num_slices_for_work = 0;
+    std::atomic<int> num_slices_done = 0;
+    std::mutex done_mtx;
+    std::condition_variable cv_pic_done;
+    std::thread* thread_pool[MAX_NUM_THREADS] = { 0 };
+    int done_threashold = 0;
+    int num_threads = 1;
+#endif
+
 public:
+    // headers & user data
     std::vector<uint8_t> user_data;
-    // headers
     sequence_header_t m_sequence_header = { 0 }; //mandatory
     sequence_extension_t m_sequence_extension = { 0 }; //mandatory
     sequence_display_extension_t* m_sequence_display_extension = nullptr;

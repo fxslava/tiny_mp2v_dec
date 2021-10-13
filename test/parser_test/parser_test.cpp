@@ -20,11 +20,11 @@ void stream_writer_func(mp2v_decoder_c* mp2v_decoder, std::string output_file) {
     mp2v_decoder->get_decoded_frame(frame);
 
     while (frame) {
-        for (int i = 0; i < 3; i++) {
+        /*for (int i = 0; i < 3; i++) {
             uint8_t* plane = frame->get_planes(i);
             for (int y = 0; y < frame->get_height(i); y++, plane += frame->get_strides(i))
                 fwrite(plane, 1, frame->get_width(i), fp);
-        }
+        }*/
 
         mp2v_decoder->release_frame(frame);
         mp2v_decoder->get_decoded_frame(frame);
@@ -56,9 +56,10 @@ int main(int argc, char* argv[])
     config.width = 1920;
     config.height = 1088;
     config.chroma_format = 2;
-    config.frames_pool_size = 16;
+    config.frames_pool_size = 100;
     config.pictures_pool_size = 9; // I + P + 7B
     config.reordering = true;
+    config.num_threads = 8;
 
     std::string *bitstream_file, *output_file;
     std::vector<arg_desc_t> args_desc{

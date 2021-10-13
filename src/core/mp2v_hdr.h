@@ -358,5 +358,6 @@ MP2V_INLINE bool parse_slice_header(bitstream_reader_c* m_bs, slice_t& slice, se
             m_bs->skip_bits(9);
         }
     }
+    m_bs->skip_bits(1); /* with the value '0' */
     return true;
 }
