@@ -122,11 +122,11 @@ bool mp2v_picture_c::decode_slice() {
     if (refs[0]) make_macroblock_yuv_ptrs(cache.yuv_planes[REF_TYPE_L0 ], refs[0], mb_row, cache.luma_stride, cache.chroma_stride, sext.chroma_format);
     if (refs[1]) make_macroblock_yuv_ptrs(cache.yuv_planes[REF_TYPE_L1 ], refs[1], mb_row, cache.luma_stride, cache.chroma_stride, sext.chroma_format);
     if (m_picture_coding_extension.q_scale_type) {
-        if (slice.quantiser_scale_code < 9)       cache.quantiser_scale = slice.quantiser_scale_code;
+        if (slice.quantiser_scale_code < 9)       cache.quantiser_scale =  slice.quantiser_scale_code;
         else if (slice.quantiser_scale_code < 17) cache.quantiser_scale = (slice.quantiser_scale_code - 4) << 1;
         else if (slice.quantiser_scale_code < 25) cache.quantiser_scale = (slice.quantiser_scale_code - 10) << 2;
-        else                                        cache.quantiser_scale = (slice.quantiser_scale_code - 17) << 3; }
-    else                                            cache.quantiser_scale = slice.quantiser_scale_code << 1;
+        else                                      cache.quantiser_scale = (slice.quantiser_scale_code - 17) << 3; }
+    else                                          cache.quantiser_scale =  slice.quantiser_scale_code << 1;
 
 #ifdef MP2V_MT
     if (weak) {
