@@ -20,7 +20,8 @@ MP2V_INLINE uint8x16_t mc8_func_template_aarch64(uint8_t* src, uint32_t stride) 
             const auto tmp1 = vcombine_u8(tmp, vld1_u8(src + stride * 2));
             return vrhaddq_u8(tmp0, tmp1);
         }
-    case MC_11: {
+    case MC_11:
+	default: {
             const auto tmpa = vld1_u8(src + stride);
             const auto tmp0 = vcombine_u8(vld1_u8(src), tmpa);
             const auto tmp1 = vcombine_u8(tmpa, vld1_u8(src + stride * 2));
@@ -48,6 +49,7 @@ MP2V_INLINE uint8x16_t mc16_func_template_aarch64(uint8_t* src, uint32_t stride)
     case MC_10:
         return vrhaddq_u8(vld1q_u8(src), vld1q_u8(&src[stride]));
     case MC_11:
+	default:
         uint8x16_t tmp0 = vrhaddq_u8(vld1q_u8(src), vld1q_u8(&src[1]));
         uint8x16_t tmp1 = vrhaddq_u8(vld1q_u8(&src[stride]), vld1q_u8(&src[stride + 1]));
         return vrhaddq_u8(tmp0, tmp1);

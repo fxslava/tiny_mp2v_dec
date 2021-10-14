@@ -7,7 +7,7 @@
 #include "bitstream.h"
 #include "core/decoder.h"
 
-#if defined(WIN32)
+#if defined(_M_X64)
 #include <ittnotify.h>
 #endif
 
