@@ -20,13 +20,6 @@ constexpr int CACHE_LINE = 64;
 class mp2v_picture_c;
 class mp2v_decoder_c;
 
-#ifdef _DEBUG
-class slice_data_c {
-public:
-    std::vector<macroblock_t> m_macroblocks;
-};
-#endif
-
 struct slice_task_t {
     macroblock_context_cache_t task_cache;
     bitstream_reader_c bs;
@@ -88,10 +81,6 @@ public:
     std::vector<slice_task_t> picture_slices_tasks;
     bool decode_task(int task_id);
     void reset_task_list() { picture_slices_tasks.clear(); }
-#endif
-#ifdef _DEBUG
-    std::vector<slice_data_c> m_slices;
-    void dump_mvs(const char* dump_filename);
 #endif
 };
 

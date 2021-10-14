@@ -141,10 +141,6 @@ bool mp2v_picture_c::decode_slice() {
     // decode macroblocks
     do {
         m_parse_macroblock_func(m_bs, cache);
-
-#ifdef _DEBUG
-        //m_macroblocks.push_back(cache.mb);
-#endif
     } while (m_bs->get_next_bits(23) != 0);
     return true;
 }
@@ -190,35 +186,6 @@ void mp2v_picture_c::init() {
         }
     }
 }
-
-#ifdef _DEBUG
-void mp2v_picture_c::dump_mvs(const char* dump_filename) {
-    FILE* fp = fopen(dump_filename, "w");
-    int y0 = 0;
-    for (auto slice : m_slices) {
-        y0 += 16;
-        int x0 = 0;
-        for (auto mb : slice.m_macroblocks) {
-            x0 += 16 * mb.macroblock_address_increment;
-            if (mb.macroblock_type & macroblock_motion_forward_bit) {
-                int x1 = x0 + mb.MVs[0][0][0];
-                int y1 = y0 + mb.MVs[0][0][1];
-                fprintf(fp, "%d\t%d\n", x0, y0);
-                fprintf(fp, "%d\t%d\tx:%d y:%d\n", x1, y1, mb.MVs[0][0][0], mb.MVs[0][0][1]);
-                fprintf(fp, "\n");
-            }
-            if (mb.macroblock_type & macroblock_motion_backward_bit) {
-                int x1 = x0 + mb.MVs[0][1][0];
-                int y1 = y0 + mb.MVs[0][1][1];
-                fprintf(fp, "%d\t%d\n", x0, y0);
-                fprintf(fp, "%d\t%d\tx:%d y:%d\n", x1, y1, mb.MVs[0][0][0], mb.MVs[0][0][1]);
-                fprintf(fp, "\n");
-            }
-        }
-    }
-    fclose(fp);
-}
-#endif
 
 bool mp2v_decoder_c::decode_user_data() {
     while (m_bs.get_next_bits(vlc_start_code.len) != vlc_start_code.value) {
