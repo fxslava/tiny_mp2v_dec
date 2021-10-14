@@ -92,10 +92,10 @@ static void parse_block(bitstream_reader_c* bs, int16_t* qfs, uint8_t W[64], uin
         uint32_t buffer = GET_NEXT_BITS(32);
 
         // EOB
-        if (use_dct_one_table) { if ((buffer & 0xF0000000) == (0b0110ll << (32 - 4))) { SKIP_BITS(4); break; } }
-        else                   { if ((buffer & 0xc0000000) == (0b10 << (32 - 2)))     { SKIP_BITS(2); break; } }
+        if (use_dct_one_table) { if ((buffer & 0xF0000000u) == (0b0110u << (32u - 4u))) { SKIP_BITS(4); break; } }
+        else                   { if ((buffer & 0xc0000000u) == (0b10u << (32u - 2u)))     { SKIP_BITS(2); break; } }
 
-        if ((buffer & 0xfc000000) == (0b000001 << (32 - 6))) { // escape code
+        if ((buffer & 0xfc000000u) == (0b000001u << (32u - 6u))) { // escape code
             buffer <<= 6;
             run = ((uint32_t)buffer >> (32 - 6));
             buffer <<= 6;
@@ -206,7 +206,7 @@ MP2V_INLINE void apply_chroma_scale(int16_t& mvx, int16_t& mvy) {
 }
 
 MP2V_INLINE int mc_bidir_idx(int16_t mvfx, int16_t mvfy, int16_t mvbx, int16_t mvby) {
-    return mvfx & 0x01 + ((mvfy & 0x01) << 1) + ((mvbx & 0x01) << 2) + ((mvby & 0x01) << 3);
+    return (mvfx & 0x01) + ((mvfy & 0x01) << 1) + ((mvbx & 0x01) << 2) + ((mvby & 0x01) << 3);
 }
 
 template<int chroma_format, int plane_idx, int vect_idx, mc_template_e mc_templ>
@@ -541,8 +541,8 @@ bool parse_macroblock_template(bitstream_reader_c* m_bs, macroblock_context_cach
     // decode skipped macroblocks
     if ((mb.macroblock_address_increment > 1) && (picture_coding_type == picture_coding_type_pred))
         memset(cache.PMVs, 0, sizeof(cache.PMVs));
-    for (int i = 0; i < mb.macroblock_address_increment; i++) {
-        if (i == (mb.macroblock_address_increment - 1)) break;
+    for (int i = 0; i < (int)mb.macroblock_address_increment; i++) {
+        if ((uint32_t)i == (mb.macroblock_address_increment - 1)) break;
         if (picture_structure == picture_structure_framepic) {
             if (picture_coding_type == picture_coding_type_bidir) base_motion_compensation<chroma_format, mc_templ_frame, true,  true>(cache, mb, cache.PMVs);
             else                                                  base_motion_compensation<chroma_format, mc_templ_frame, false, true>(cache, mb, cache.PMVs); }
@@ -608,10 +608,12 @@ bool parse_macroblock_template(bitstream_reader_c* m_bs, macroblock_context_cach
             switch (mb.prediction_type) {
             case Field_based:
                 if (mb.motion_vector_count == 2) base_motion_compensation<chroma_format, mc_templ_field, true>(cache, mb, MVs);
-                else                             base_motion_compensation<chroma_format, mc_templ_field, false>(cache, mb, MVs); break;
+                else                             base_motion_compensation<chroma_format, mc_templ_field, false>(cache, mb, MVs); 
+                break;
             case Frame_based:
                 if (mb.motion_vector_count == 2) base_motion_compensation<chroma_format, mc_templ_frame, true>(cache, mb, MVs);
-                else                             base_motion_compensation<chroma_format, mc_templ_frame, false>(cache, mb, MVs); break;
+                else                             base_motion_compensation<chroma_format, mc_templ_frame, false>(cache, mb, MVs); 
+                break;
             case Dual_Prime:
             case MC16x8: break; // Not supported
             }

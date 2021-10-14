@@ -1,4 +1,4 @@
-// Copyright © 2021 Vladislav Ovchinnikov. All rights reserved.
+// Copyright ï¿½ 2021 Vladislav Ovchinnikov. All rights reserved.
 #pragma once
 #include <vector>
 #include <atomic>
@@ -87,7 +87,7 @@ public:
 class mp2v_decoder_c {
     friend class mp2v_picture_c;
 public:
-    mp2v_decoder_c() : m_frames_pool(100), m_output_frames(100) {};
+    mp2v_decoder_c() : m_frames_pool(100), m_output_frames(100), num_slices_for_work(0), num_slices_done(0) {};
     ~mp2v_decoder_c();
     bool decoder_init(decoder_config_t* config);
     bool decode(uint8_t* buffer, int len);
@@ -113,8 +113,8 @@ protected:
     static void threadpool_task_scheduler(mp2v_decoder_c *dec);
     void flush(mp2v_picture_c* cur_pic, int num_slices);
     mp2v_picture_c* processing_picture = nullptr;
-    std::atomic<int> num_slices_for_work = 0;
-    std::atomic<int> num_slices_done = 0;
+    std::atomic<int> num_slices_for_work;
+    std::atomic<int> num_slices_done;
     std::mutex done_mtx;
     std::condition_variable cv_pic_done;
     std::thread* thread_pool[MAX_NUM_THREADS] = { 0 };
