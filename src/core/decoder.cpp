@@ -92,7 +92,7 @@ bool mp2v_picture_c::decode_slice() {
     auto& pcext = m_picture_coding_extension;
     auto& sh = seq->m_sequence_header;
     auto& sext = m_dec->m_sequence_extension;
-    slice_t slice;
+    slice_t slice = { 0 };
 
     // decode slice header
     parse_slice_header(m_bs, slice, sh, seq->m_sequence_scalable_extension);

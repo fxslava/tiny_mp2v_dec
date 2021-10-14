@@ -60,7 +60,7 @@ public:
     }
 
     template<typename func_t>
-    bool test_mc_pred(func_t func_c, func_t func_simd, char* name_func_c, char* name_func_simd) {
+    bool test_mc_pred(func_t func_c, func_t func_simd, const char* name_func_c, const char* name_func_simd) {
         for (int step = 0; step < TEST_NUM_ITERATIONS; step++) {
             generate_sources(std::is_same<func_t, mc_bidir_func_t>::value);
             call_mc_routine(&dst_plane_ref[0], func_c);
@@ -72,7 +72,7 @@ public:
     }
 
     template<typename func_t>
-    bool test_mc_pred_performance(func_t func_c, func_t func_simd, char* name_func_c, char* name_func_simd) {
+    bool test_mc_pred_performance(func_t func_c, func_t func_simd, const char* name_func_c, const char* name_func_simd) {
         const auto start = std::chrono::system_clock::now();
         for (int step = 0; step < TEST_NUM_ITERATIONS_PERFORMANCE; step++)
             call_mc_routine(&dst_plane_ref[0], func_c);
