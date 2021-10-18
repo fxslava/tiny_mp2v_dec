@@ -4,11 +4,8 @@
 #define TASKQUEUE_HEAD_NOWORK      0x0000fffe
 #define TASKQUEUE_HEAD_KILL        0x80000000
 #define TASKQUEUE_SLICE_NEXT_TASK  -1
-//#define LOG
 
-void slice_task_c::done() { 
-    if (owner) owner->slice_done(); 
-}
+void slice_task_c::done() { if (owner) owner->slice_done(); }
 
 int picture_task_c::add_slice_task(slice_task_c *task) {
     int idx = slices_tasks.size();
@@ -41,10 +38,7 @@ void picture_task_c::reset() {
     slices_tasks.clear();
 }
 
-void picture_task_c::add_waiter() {
-    std::lock_guard<std::mutex> lk(mtx);
-    int waiters = num_waiters++;
-}
+void picture_task_c::add_waiter() { num_waiters++; }
 
 void picture_task_c::wait_for_free() {
     std::unique_lock<std::mutex> lk(mtx);
@@ -53,10 +47,7 @@ void picture_task_c::wait_for_free() {
 
 void picture_task_c::wait_for_completion() {
     std::unique_lock<std::mutex> lk(mtx);
-    if (done_slices.load() != slices_tasks.size())
-        cv_completed.wait(lk, [this] { return done_slices.load() == slices_tasks.size(); });
-    else
-        lk.unlock();
+    cv_completed.wait(lk, [this] { return done_slices.load() == slices_tasks.size(); });
 }
 
 void picture_task_c::release_waiter() {
@@ -66,12 +57,7 @@ void picture_task_c::release_waiter() {
         int n_waiters = --num_waiters;
         is_free = !n_waiters;
     }
-    if (is_free) {
-        cv_free.notify_all();
-#ifdef LOG
-        printf("free: %d\tpic: %d\n", num_waiters.load(), index);
-#endif
-    }
+    if (is_free) cv_free.notify_all();
 }
 
 void picture_task_c::slice_done() {
@@ -80,23 +66,13 @@ void picture_task_c::slice_done() {
         std::lock_guard<std::mutex> lk(mtx);
         int done_slices_ = ++done_slices;
         pic_done = (done_slices_ >= slices_tasks.size());
-        if (pic_done) {
-            owner->completed_tasks++;
-#ifdef LOG
-            printf("done: %d\tpic: %d\n", done_slices_, index);
-#endif
-        }
     }
     if (pic_done) {
         for (int i = 0; i < num_dependencies; i++)
             dependencies[i]->release_waiter();
         cv_completed.notify_all();
-        if (non_referenceable) {
+        if (non_referenceable)
             cv_free.notify_all();
-#ifdef LOG
-            printf("free: b\tpic: %d\n", index);
-#endif
-        }
     }
 }
 
@@ -125,23 +101,16 @@ void task_queue_c::next_task(int pic_idx) {
     int new_pic_idx = (pic_idx + 1) % task_queue.size();
     task_queue[new_pic_idx].wait_for_dependencies();
     int new_head = make_head(task_queue[new_pic_idx].slices_tasks.size(), new_pic_idx);
-#ifdef LOG
-    printf("%x\n", new_head);
-#endif
     head.store(new_head);
 }
 
 task_queue_c::task_queue_c(int size) :
     task_queue(size),
-    completed_tasks(size),
     ready_to_go_tasks(0),
     head(TASKQUEUE_HEAD | TASKQUEUE_HEAD_NOWORK)
 {
-    int i = 0;
-    for (auto& task : task_queue) {
+    for (auto& task : task_queue)
         task.owner = this;
-        task.index = i++;
-    }
 }
 
 task_status_e task_queue_c::get_task(slice_task_c*& slice_task) {
@@ -191,6 +160,8 @@ void task_queue_c::flush() {
         task.wait_for_completion();
         task.wait_for_free();
     }
+    head_to_work = 0;
+    head.store(TASKQUEUE_HEAD | TASKQUEUE_HEAD_NOWORK);
     status = QUEUE_SUSPENDED;
 }
 

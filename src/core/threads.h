@@ -30,7 +30,6 @@ public:
 
 class picture_task_c {
 public:
-    int index = 0;
     picture_task_c() : done_slices(0), num_waiters(0) {}
     int add_slice_task(slice_task_c *task);
     bool add_dependency(picture_task_c* dependency);
@@ -73,7 +72,6 @@ private:
 
     queue_status_e status = QUEUE_SUSPENDED;
     std::atomic<int> ready_to_go_tasks;
-    std::atomic<int> completed_tasks;
     std::atomic<int> head;
     std::vector<picture_task_c> task_queue;
     std::mutex mtx;
