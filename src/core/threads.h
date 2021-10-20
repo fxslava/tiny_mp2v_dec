@@ -25,7 +25,7 @@ private:
     friend class picture_task_c;
 public:
     picture_task_c* owner = nullptr;
-    void done();
+    virtual void done();
 };
 
 class picture_task_c {
@@ -35,11 +35,13 @@ public:
     bool add_dependency(picture_task_c* dependency);
     void wait_for_dependencies();
 
+protected:
+    virtual void reset();
+
 private:
     friend class slice_task_c;
     friend class task_queue_c;
 
-    void reset();
     void add_waiter();
     void wait_for_free();
     void wait_for_completion();

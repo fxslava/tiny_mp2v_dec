@@ -1,6 +1,7 @@
 // Copyright � 2021 Vladislav Ovchinnikov. All rights reserved.
 #include <gtest/gtest.h>
 #include <iostream>
+#include <future>
 
 #define ERROR_PRINTF(...)  \
     do { testing::internal::ColoredPrintf(testing::internal::COLOR_RED, "[  FAILED  ] "); \

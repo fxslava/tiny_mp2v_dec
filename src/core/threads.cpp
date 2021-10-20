@@ -89,7 +89,7 @@ bool task_queue_c::wait_for_next_task() {
         auto ready = ready_to_go_tasks.load();
         if (ready < 0) {
             head = (TASKQUEUE_HEAD | TASKQUEUE_HEAD_KILL | TASKQUEUE_HEAD_NOWORK);
-            return false; // Flush condition
+            return false;
         }
         if (ready > 0) break;
     }
@@ -159,13 +159,11 @@ void task_queue_c::flush() {
     for (auto& task : task_queue) {
         task.wait_for_completion();
         task.wait_for_free();
+        task.reset();
     }
-    head_to_work = 0;
-    head.store(TASKQUEUE_HEAD | TASKQUEUE_HEAD_NOWORK);
-    status = QUEUE_SUSPENDED;
 }
 
 void task_queue_c::kill() {
     flush();
-    ready_to_go_tasks.store(-1); // Set flush condition
+    ready_to_go_tasks.store(-1);
 }
