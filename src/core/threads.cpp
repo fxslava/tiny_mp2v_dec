@@ -99,8 +99,8 @@ bool task_queue_c::wait_for_next_task() {
 void task_queue_c::next_task(int pic_idx) {
     ready_to_go_tasks--;
     int new_pic_idx = (pic_idx + 1) % task_queue.size();
-    task_queue[new_pic_idx].wait_for_dependencies();
-    int new_head = make_head(task_queue[new_pic_idx].slices_tasks.size(), new_pic_idx);
+    task_queue[new_pic_idx]->wait_for_dependencies();
+    int new_head = make_head(task_queue[new_pic_idx]->slices_tasks.size(), new_pic_idx);
     head.store(new_head);
 }
 
@@ -109,8 +109,10 @@ task_queue_c::task_queue_c(int size) :
     ready_to_go_tasks(0),
     head(TASKQUEUE_HEAD | TASKQUEUE_HEAD_NOWORK)
 {
-    for (auto& task : task_queue)
-        task.owner = this;
+    for (auto*& task : task_queue) {
+        task = new picture_task_c();
+        task->owner = this;
+    }
 }
 
 task_status_e task_queue_c::get_task(slice_task_c*& slice_task) {
@@ -125,7 +127,7 @@ task_status_e task_queue_c::get_task(slice_task_c*& slice_task) {
             int pic_idx = get_pic_idx(head_desc);
 
             if (slice_idx >= 0) {
-                slice_task = task_queue[pic_idx].slices_tasks[slice_idx];
+                slice_task = task_queue[pic_idx]->slices_tasks[slice_idx];
                 return TASK_QUEUE_SUCCESS;
             }
             else if (slice_idx == TASKQUEUE_SLICE_NEXT_TASK) {
@@ -136,19 +138,19 @@ task_status_e task_queue_c::get_task(slice_task_c*& slice_task) {
     }
 }
 
-picture_task_c& task_queue_c::create_task() {
+picture_task_c* task_queue_c::create_task() {
     auto& task_place = task_queue[head_to_work++];
     head_to_work %= task_queue.size();
-    task_place.wait_for_completion();
-    task_place.wait_for_free();
-    task_place.reset();
+    task_place->wait_for_completion();
+    task_place->wait_for_free();
+    task_place->reset();
     return task_place;
 }
 
-void task_queue_c::add_task(picture_task_c& task, bool non_referenceable) {
-    task.non_referenceable = non_referenceable;
+void task_queue_c::add_task(picture_task_c* task, bool non_referenceable) {
+    task->non_referenceable = non_referenceable;
     if (status == QUEUE_SUSPENDED) {
-        head.store(make_head(task_queue[0].slices_tasks.size(), 0));
+        head.store(make_head(task_queue[0]->slices_tasks.size(), 0));
         status = QUEUE_WORK;
     }
     else
@@ -156,10 +158,10 @@ void task_queue_c::add_task(picture_task_c& task, bool non_referenceable) {
 }
 
 void task_queue_c::flush() {
-    for (auto& task : task_queue) {
-        task.wait_for_completion();
-        task.wait_for_free();
-        task.reset();
+    for (auto* task : task_queue) {
+        task->wait_for_completion();
+        task->wait_for_free();
+        task->reset();
     }
 }
 

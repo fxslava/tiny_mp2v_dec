@@ -64,8 +64,8 @@ class task_queue_c {
 public:
     task_queue_c(int size);
     task_status_e get_task(slice_task_c*& slice_task);
-    picture_task_c& create_task();
-    void add_task(picture_task_c& task, bool non_referenceable = false);
+    picture_task_c* create_task();
+    void add_task(picture_task_c* task, bool non_referenceable = false);
     void flush();
     void kill();
 
@@ -75,7 +75,7 @@ private:
     queue_status_e status = QUEUE_SUSPENDED;
     std::atomic<int> ready_to_go_tasks;
     std::atomic<int> head;
-    std::vector<picture_task_c> task_queue;
+    std::vector<picture_task_c*> task_queue;
     std::mutex mtx;
     int head_to_work = 0;
 
