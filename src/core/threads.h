@@ -3,6 +3,7 @@
 #include <atomic>
 #include <thread>
 #include <mutex>
+#include <functional>
 #include <condition_variable>
 
 constexpr int MAX_NUM_DEPENDENCIES = 2;
@@ -21,10 +22,10 @@ class picture_task_c;
 class task_queue_c;
 
 class slice_task_c {
-private:
+protected:
     friend class picture_task_c;
-public:
     picture_task_c* owner = nullptr;
+public:
     virtual void done();
 };
 
@@ -62,7 +63,7 @@ private:
 
 class task_queue_c {
 public:
-    task_queue_c(int size);
+    task_queue_c(int size, std::function<picture_task_c*()> constructor);
     task_status_e get_task(slice_task_c*& slice_task);
     picture_task_c* create_task();
     void add_task(picture_task_c* task, bool non_referenceable = false);

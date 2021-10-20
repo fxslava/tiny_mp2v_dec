@@ -18,7 +18,7 @@ constexpr int TASK_POOL_SIZE = 8;
 
 class threads_test_c : public ::testing::Test {
 public:
-    threads_test_c() : queue(TASK_POOL_SIZE) {}
+    threads_test_c() : queue(TASK_POOL_SIZE, []() -> picture_task_c* { return new picture_task_c(); }) {}
     ~threads_test_c() {}
 
     void SetUp() {
@@ -46,7 +46,7 @@ public:
         return true;
     }
 
-    template<int NUM_SLICES, int NUM_B_FRAMES, int NUM_OF_GOPS>
+    template<int NUM_SLICES, int NUM_B_FRAMES>
     bool test_multiple_flushes(int num_flushes, int timeout) {
         for (int i = 0; i < num_flushes; i++) {
             immitate_gop<NUM_SLICES, NUM_B_FRAMES>(queue);
@@ -73,4 +73,4 @@ private:
 };
 
 TEST_F(threads_test_c, test_flush) { EXPECT_TRUE((test_flush<68, 3, 100>(1))); }
-TEST_F(threads_test_c, test_multiple_flushes) { EXPECT_TRUE((test_multiple_flushes<68, 3, 100>(100, 1))); }
+TEST_F(threads_test_c, test_multiple_flushes) { EXPECT_TRUE((test_multiple_flushes<68, 3>(100, 1))); }

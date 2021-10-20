@@ -1,4 +1,5 @@
 #include "threads.h"
+#include <algorithm>
 
 #define TASKQUEUE_HEAD             0x00010000
 #define TASKQUEUE_HEAD_NOWORK      0x0000fffe
@@ -88,7 +89,7 @@ bool task_queue_c::wait_for_next_task() {
     while (1) {
         auto ready = ready_to_go_tasks.load();
         if (ready < 0) {
-            head = (TASKQUEUE_HEAD | TASKQUEUE_HEAD_KILL | TASKQUEUE_HEAD_NOWORK);
+            head.store(TASKQUEUE_HEAD | TASKQUEUE_HEAD_KILL | TASKQUEUE_HEAD_NOWORK);
             return false;
         }
         if (ready > 0) break;
@@ -104,21 +105,18 @@ void task_queue_c::next_task(int pic_idx) {
     head.store(new_head);
 }
 
-task_queue_c::task_queue_c(int size) :
+task_queue_c::task_queue_c(int size, std::function<picture_task_c* ()> constructor) :
     task_queue(size),
     ready_to_go_tasks(0),
     head(TASKQUEUE_HEAD | TASKQUEUE_HEAD_NOWORK)
 {
-    for (auto*& task : task_queue) {
-        task = new picture_task_c();
-        task->owner = this;
-    }
+    std::generate(task_queue.begin(), task_queue.end(), constructor);
 }
 
 task_status_e task_queue_c::get_task(slice_task_c*& slice_task) {
     slice_task = nullptr;
     while (1) {
-        volatile int head_desc = head.load();
+        int head_desc = head.load();
         if (head_desc & TASKQUEUE_HEAD_KILL) return TASK_QUEUE_KILL;
         int slice_idx = get_slice_idx(head_desc);
         if (slice_idx >= 0) {
