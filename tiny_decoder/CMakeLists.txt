@@ -1,12 +1,12 @@
-project(tiny_mp2v_parser_test)
+project(tiny_mp2v_dec)
 
 include_directories(../sample_common)
-include_directories(../../src)
-include_directories(../../src/api)
+include_directories(../src)
+include_directories(../src/api)
 
 if (WIN32)
-include_directories(../../vtune/include)
-link_directories(../../vtune/lib64)
+include_directories(../vtune/include)
+link_directories(../vtune/lib64)
 endif()
 
 file(
