@@ -242,8 +242,8 @@ void mp2v_decoder_c::flush_mini_gop() {
         push_frame(ref_frames[1]);
 }
 
-#ifdef MP2V_MT
 void mp2v_decoder_c::flush(mp2v_picture_c* cur_pic, int num_slices) {
+#ifdef MP2V_MT
     // flush
     if (cur_pic)
     {
@@ -273,8 +273,8 @@ void mp2v_decoder_c::flush(mp2v_picture_c* cur_pic, int num_slices) {
     for (auto*& thread : thread_pool)
         if (thread)
             thread->join();
-}
 #endif
+}
 
 void mp2v_decoder_c::out_pic(mp2v_picture_c* cur_pic) {
     auto* frame = cur_pic->get_frame();
@@ -429,9 +429,11 @@ bool mp2v_decoder_c::decoder_init(decoder_config_t* config) {
 mp2v_decoder_c::~mp2v_decoder_c() {
     for (auto* pic : m_pictures_pool)
         delete pic;
+#ifdef MP2V_MT
     for (auto*& thread : thread_pool)
         if (thread) {
             delete thread;
             thread = nullptr;
         }
+#endif
 }
