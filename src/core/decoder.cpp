@@ -87,14 +87,13 @@ static void make_macroblock_yuv_ptrs(uint8_t* (&yuv)[3], frame_c* frame, int mb_
 }
 
 bool mp2v_picture_c::decode_slice(bitstream_reader_c bs) {
-    auto* seq = m_dec;
     auto& pcext = m_picture_coding_extension;
-    auto& sh = seq->m_sequence_header;
+    auto& sh = m_dec->m_sequence_header;
     auto& sext = m_dec->m_sequence_extension;
     slice_t slice = { 0 };
 
     // decode slice header
-    parse_slice_header(&bs, slice, sh, seq->m_sequence_scalable_extension);
+    parse_slice_header(&bs, slice, sh, m_dec->m_sequence_scalable_extension);
 
     // calculate row position of the slice
     int mb_row = 0;
@@ -133,17 +132,6 @@ bool mp2v_picture_c::decode_slice(bitstream_reader_c bs) {
     } while (bs.get_next_bits(23) != 0);
     return true;
 }
-
-#ifdef MP2V_MT
-void mp2v_picture_c::add_task(bitstream_reader_c bs) {
-    picture_slices_tasks.push_back({ bs });
-}
-
-bool mp2v_picture_c::decode_task(int task_id) {
-    auto& task = picture_slices_tasks[task_id];
-    return decode_slice(task.bs);
-}
-#endif
 
 void mp2v_picture_c::init() {
     auto& sext = m_dec->m_sequence_extension;
@@ -232,38 +220,14 @@ void mp2v_decoder_c::flush_mini_gop() {
         push_frame(ref_frames[1]);
 }
 
-void mp2v_decoder_c::flush(mp2v_picture_c* cur_pic, int num_slices) {
-#ifdef MP2V_MT
-    // flush
-    if (cur_pic)
-    {
-        // wait for the completion of decoding previous picture
-        if (processing_picture)
-        {
-            std::unique_lock<std::mutex> lck(done_mtx);
-            cv_pic_done.wait(lck, [=] { return (num_slices_done == done_threashold); });
-            out_pic(processing_picture);
-        }
-
-        num_slices_done.store(0);
-        done_threashold = num_slices; // set finish condition threashold
-        processing_picture = cur_pic; // set new processing picture
-
-        // start decoding
-        num_slices_for_work.store(num_slices);
-
-        // decode last picture
-        {
-            std::unique_lock<std::mutex> lck(done_mtx);
-            cv_pic_done.wait(lck, [=] { return (num_slices_done == done_threashold); });
-            out_pic(processing_picture);
-        }
-        num_slices_for_work.store(INT32_MIN); //stop workers
-    }
-    for (auto*& thread : thread_pool)
-        if (thread)
-            thread->join();
-#endif
+mp2v_picture_c* mp2v_decoder_c::new_pic() {
+    mp2v_picture_c* res = nullptr;
+    frame_c* frame = nullptr;
+    m_frames_pool.pop(frame);
+    res = m_pictures_pool.back();
+    res->attach(frame);
+    m_pictures_pool.pop_back();
+    return res;
 }
 
 void mp2v_decoder_c::out_pic(mp2v_picture_c* cur_pic) {
@@ -278,117 +242,61 @@ void mp2v_decoder_c::out_pic(mp2v_picture_c* cur_pic) {
     m_pictures_pool.push_back(cur_pic);
 }
 
-MP2V_INLINE uint32_t mp2v_decoder_c::get_next_start_code() {
-    auto& buffer     = m_bs.get_buf();
-    auto& buffer_idx = m_bs.get_idx();
-    auto& buffer_ptr = m_bs.get_ptr();
-
-    if (start_code_idx < start_code_tbl.size()) {
-        buffer_idx = 32;
-        buffer_ptr = start_code_tbl[start_code_idx] + 1;
-        buffer = (uint64_t)bswap_32(*start_code_tbl[start_code_idx++]);
-        return buffer;
-    }
-    else
-        return 0x000000b7; // sequence_end_code;
-}
-
 bool mp2v_decoder_c::decode(uint8_t* buffer, int len) {
 
     m_bs.set_bitstream_buffer(buffer);
-    generate_start_codes_tbl(buffer, buffer + len, &start_code_tbl);
-
-    int num_slices = 0;
-    bool new_picture = false;
+    bool new_picture = false, sequence_end = false;
     mp2v_picture_c* cur_pic = nullptr;
 
-    while (1) {
-        uint8_t start_code = (uint8_t)(get_next_start_code() & 0xff);
+    scan_start_codes(buffer, buffer + len, [&](uint8_t* ptr) {
+        BITSTREAM((&m_bs));
+        bit_idx = 32;
+        bit_ptr = (uint32_t*)(ptr + 4);
+        bit_buf = (uint64_t)bswap_32(*((uint32_t*)ptr));
+        uint8_t start_code = *(ptr + 3);
         switch (start_code) {
         case sequence_header_code: parse_sequence_header(&m_bs, m_sequence_header); break;
         case extension_start_code: decode_extension_data(cur_pic);                  break;
         case group_start_code:     parse_group_of_pictures_header(&m_bs, *(m_group_of_pictures_header = new group_of_pictures_header_t)); break;
-        case picture_start_code:   {
-#ifdef MP2V_MT
-            if (cur_pic)
-            {
-                // wait for the completion of decoding previous picture
-                if (processing_picture)
-                {
-                    std::unique_lock<std::mutex> lck(done_mtx);
-                    cv_pic_done.wait(lck, [=]{ return (num_slices_done == done_threashold); });
-                    out_pic(processing_picture);
+        case picture_start_code: {
+                new_picture = true;
+                if (cur_pic) out_pic(cur_pic);
+                cur_pic = new_pic();
+                parse_picture_header(&m_bs, cur_pic->m_picture_header);
+                if (cur_pic->m_picture_header.picture_coding_type == picture_coding_type_pred || cur_pic->m_picture_header.picture_coding_type == picture_coding_type_intra) {
+                    ref_frames[0] = ref_frames[1];
+                    ref_frames[1] = cur_pic->get_frame();
                 }
-
-                num_slices_done.store(0);
-                done_threashold = num_slices; // set finish condition threashold
-                processing_picture = cur_pic; // set new processing picture
-
-                // start decoding
-                num_slices_for_work.store(num_slices);
             }
-#else
-            if (cur_pic) out_pic(cur_pic);
-#endif
-            new_picture = true;
-            num_slices = 0;
-
-            frame_c* frame = nullptr;
-            m_frames_pool.pop(frame);
-            cur_pic = m_pictures_pool.back();
-#ifdef MP2V_MT
-            cur_pic->reset_task_list();
-#endif
-            parse_picture_header(&m_bs, cur_pic->m_picture_header);
-            if (cur_pic->m_picture_header.picture_coding_type == picture_coding_type_pred || cur_pic->m_picture_header.picture_coding_type == picture_coding_type_intra) {
-                ref_frames[0] = ref_frames[1];
-                ref_frames[1] = frame;
-            }
-            cur_pic->attach(frame);
-            m_pictures_pool.pop_back();
-        }
-        break;
+            break;
         case user_data_start_code: decode_user_data(); break;
         case sequence_error_code:
         case sequence_end_code:
-            flush(cur_pic, num_slices);
             flush_mini_gop();
             push_frame(nullptr);
-            return true;
+            sequence_end = true;
+            break;
         default:
-            if ((start_code >= slice_start_code_min) && (start_code <= slice_start_code_max))
-            {
-                num_slices++;
-                if (new_picture)
-                    cur_pic->init();
-#ifdef MP2V_MT
-                cur_pic->add_task(m_bs);
-#else
+            if ((start_code >= slice_start_code_min) && (start_code <= slice_start_code_max)) {
+                if (new_picture) cur_pic->init();
                 cur_pic->decode_slice(m_bs);
-#endif
                 new_picture = false;
             }
         }
+    });
+    if (!sequence_end) {
+        flush_mini_gop();
+        push_frame(nullptr);
     }
     return true;
 }
 
 #ifdef MP2V_MT
 void mp2v_decoder_c::threadpool_task_scheduler(mp2v_decoder_c* dec) {
-    auto& num_slices_for_work = dec->num_slices_for_work;
-    auto& num_slices_done = dec->num_slices_done;
-    auto*& pic = dec->processing_picture;
-    while (1) {
-        int num_slices = num_slices_for_work.load();
-        if ((num_slices > 0) && pic) {
-            int slice_idx = --num_slices_for_work;
-            if (slice_idx >= 0) {
-                pic->decode_task(slice_idx);
-                if (dec->done_threashold == ++num_slices_done)
-                    dec->cv_pic_done.notify_one();
-            }
-        }
-        if (num_slices == INT32_MIN) break;
+    mp2v_slice_task_c* slice_task = nullptr;
+    while (dec->task_queue->get_task((slice_task_c*&)slice_task) == TASK_QUEUE_SUCCESS) {
+        
+        slice_task->done();
     }
 }
 #endif
@@ -404,13 +312,14 @@ bool mp2v_decoder_c::decoder_init(decoder_config_t* config) {
     for (int i = 0; i < pool_size; i++)
         m_frames_pool.push(new frame_c(width, height, chroma_format));
 
-    for (int i = 0; i < num_pics; i++)
-        m_pictures_pool.push_back(new mp2v_picture_c(&m_bs, this, nullptr));
-
 #ifdef MP2V_MT
+    task_queue = new task_queue_c(num_pics, [this]() -> picture_task_c* { return new mp2v_picture_c(this, nullptr); });
     num_threads = config->num_threads;
     for (int i = 0; i < num_threads; i++)
         thread_pool[i] = new std::thread(threadpool_task_scheduler, this);
+#else
+    for (int i = 0; i < num_pics; i++)
+        m_pictures_pool.push_back(new mp2v_picture_c(this, nullptr));
 #endif
 
     return true;

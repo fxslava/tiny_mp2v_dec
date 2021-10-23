@@ -1,9 +1,10 @@
 #pragma once
 #include <vector>
+#include <functional>
 #include "core/common/cpu.hpp"
 
 #if defined(CPU_PLATFORM_X64)
-void generate_start_codes_tbl(uint8_t* buffer_ptr, uint8_t* buffer_end, std::vector<uint32_t*>* start_code_tbl) {
+void scan_start_codes(uint8_t* buffer_ptr, uint8_t* buffer_end, std::function<void(uint8_t*)> func) {
     static const __m128i pattern_0 = _mm_setzero_si128();
     static const __m128i pattern_1 = _mm_set1_epi8(1);
 
@@ -19,18 +20,18 @@ void generate_start_codes_tbl(uint8_t* buffer_ptr, uint8_t* buffer_end, std::vec
             int zcnt = bit_scan_forward(mask);
             mask >>= (zcnt + 1);
             ptr += zcnt;
-            start_code_tbl->push_back((uint32_t*)ptr++);
+            func(ptr++);
         }
     }
 }
 #else
-void generate_start_codes_tbl(uint8_t* buffer_ptr, uint8_t* buffer_end, std::vector<uint32_t*>* start_code_tbl) {
+void scan_start_codes(uint8_t* buffer_ptr, uint8_t* buffer_end, std::function<void(uint8_t*)> func) {
     int zcnt = 0;
     for (auto ptr = buffer_ptr; ptr < buffer_end; ptr++) {
         if (*ptr == 0) zcnt++;
         else {
             if ((*ptr == 1) && (zcnt >= 2))
-                start_code_tbl->push_back((uint32_t*)(ptr - 2));
+                func(ptr - 2);
             zcnt = 0;
         }
     }

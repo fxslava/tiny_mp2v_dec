@@ -26,7 +26,7 @@ protected:
     friend class picture_task_c;
     picture_task_c* owner = nullptr;
 public:
-    virtual void done();
+    virtual bool done();
 };
 
 class picture_task_c {
@@ -38,6 +38,8 @@ public:
 
 protected:
     virtual void reset();
+    picture_task_c* dependencies[MAX_NUM_DEPENDENCIES] = {};
+    int num_dependencies = 0;
 
 private:
     friend class slice_task_c;
@@ -47,10 +49,8 @@ private:
     void wait_for_free();
     void wait_for_completion();
     void release_waiter();
-    void slice_done();
+    bool slice_done();
 
-    picture_task_c* dependencies[MAX_NUM_DEPENDENCIES] = {};
-    int num_dependencies = 0;
     bool non_referenceable = false;
     std::atomic<int> done_slices;
     std::atomic<int> num_waiters;

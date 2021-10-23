@@ -6,7 +6,11 @@
 #define TASKQUEUE_HEAD_KILL        0x80000000
 #define TASKQUEUE_SLICE_NEXT_TASK  -1
 
-void slice_task_c::done() { if (owner) owner->slice_done(); }
+bool slice_task_c::done() { 
+    if (owner) 
+        return owner->slice_done(); 
+    return false;
+}
 
 int picture_task_c::add_slice_task(slice_task_c *task) {
     int idx = slices_tasks.size();
@@ -18,7 +22,7 @@ int picture_task_c::add_slice_task(slice_task_c *task) {
 bool picture_task_c::add_dependency(picture_task_c* dependency) {
     if (num_dependencies < MAX_NUM_DEPENDENCIES) {
         dependencies[num_dependencies++] = dependency;
-        dependency->add_waiter();
+        if (dependency) dependency->add_waiter();
         return true;
     }
     else
@@ -27,7 +31,8 @@ bool picture_task_c::add_dependency(picture_task_c* dependency) {
 
 void picture_task_c::wait_for_dependencies() {
     for (int i = 0; i < num_dependencies; i++)
-        dependencies[i]->wait_for_completion();
+        if (dependencies[i])
+            dependencies[i]->wait_for_completion();
 }
 
 void picture_task_c::reset() {
@@ -61,7 +66,7 @@ void picture_task_c::release_waiter() {
     if (is_free) cv_free.notify_all();
 }
 
-void picture_task_c::slice_done() {
+bool picture_task_c::slice_done() {
     bool pic_done = false;
     {
         std::lock_guard<std::mutex> lk(mtx);
@@ -70,11 +75,13 @@ void picture_task_c::slice_done() {
     }
     if (pic_done) {
         for (int i = 0; i < num_dependencies; i++)
-            dependencies[i]->release_waiter();
+            if (dependencies[i])
+                dependencies[i]->release_waiter();
         cv_completed.notify_all();
         if (non_referenceable)
             cv_free.notify_all();
     }
+    return pic_done;
 }
 
 int task_queue_c::get_pic_idx(int head_) { return head_ >> 17; }
