@@ -35,9 +35,9 @@ public:
     int add_slice_task(slice_task_c *task);
     bool add_dependency(picture_task_c* dependency);
     void wait_for_dependencies();
+    virtual void reset();
 
 protected:
-    virtual void reset();
     picture_task_c* dependencies[MAX_NUM_DEPENDENCIES] = {};
     int num_dependencies = 0;
 

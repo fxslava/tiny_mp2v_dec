@@ -104,7 +104,7 @@ bool mp2v_picture_c::decode_slice(bitstream_reader_c bs) {
         mb_row = slice_vertical_position - 1;
 
     // fill cache
-    auto refs = m_dec->ref_frames;
+    mp2v_picture_c* refs[2] = {(mp2v_picture_c*)dependencies[0], (mp2v_picture_c*)dependencies[1]};
     macroblock_context_cache_t cache;
     memcpy(cache.W, quantiser_matrices, sizeof(cache.W));
     memcpy(cache.f_code, pcext.f_code, sizeof(cache.f_code));
@@ -117,8 +117,8 @@ bool mp2v_picture_c::decode_slice(bitstream_reader_c bs) {
     cache.intra_vlc_format = pcext.intra_vlc_format;
     cache.previous_mb_type = 0;
                  make_macroblock_yuv_ptrs(cache.yuv_planes[REF_TYPE_SRC], m_frame, mb_row, cache.luma_stride, cache.chroma_stride, sext.chroma_format);
-    if (refs[0]) make_macroblock_yuv_ptrs(cache.yuv_planes[REF_TYPE_L0 ], refs[0], mb_row, cache.luma_stride, cache.chroma_stride, sext.chroma_format);
-    if (refs[1]) make_macroblock_yuv_ptrs(cache.yuv_planes[REF_TYPE_L1 ], refs[1], mb_row, cache.luma_stride, cache.chroma_stride, sext.chroma_format);
+    if (refs[0]) make_macroblock_yuv_ptrs(cache.yuv_planes[REF_TYPE_L0 ], refs[0]->get_frame(), mb_row, cache.luma_stride, cache.chroma_stride, sext.chroma_format);
+    if (refs[1]) make_macroblock_yuv_ptrs(cache.yuv_planes[REF_TYPE_L1 ], refs[1]->get_frame(), mb_row, cache.luma_stride, cache.chroma_stride, sext.chroma_format);
     if (m_picture_coding_extension.q_scale_type) {
         if (slice.quantiser_scale_code < 9)       cache.quantiser_scale =  slice.quantiser_scale_code;
         else if (slice.quantiser_scale_code < 17) cache.quantiser_scale = (slice.quantiser_scale_code - 4) << 1;
@@ -217,16 +217,17 @@ bool mp2v_decoder_c::decode_extension_data(mp2v_picture_c* pic) {
 
 void mp2v_decoder_c::flush_mini_gop() {
     if (ref_frames[1])
-        push_frame(ref_frames[1]);
+        push_frame(ref_frames[1]->get_frame());
 }
 
 mp2v_picture_c* mp2v_decoder_c::new_pic() {
     mp2v_picture_c* res = nullptr;
     frame_c* frame = nullptr;
     m_frames_pool.pop(frame);
-    res = m_pictures_pool.back();
+    res = m_pictures_pool.front();
+    res->reset();
     res->attach(frame);
-    m_pictures_pool.pop_back();
+    m_pictures_pool.pop_front();
     return res;
 }
 
@@ -234,11 +235,8 @@ void mp2v_decoder_c::out_pic(mp2v_picture_c* cur_pic) {
     auto* frame = cur_pic->get_frame();
     if (cur_pic->m_picture_header.picture_coding_type == picture_coding_type_bidir || !reordering)
         push_frame(frame);
-    else {
-        if (ref_frames[0])
-            push_frame(ref_frames[0]);
-    }
-    cur_pic->attach(nullptr);
+    else if (ref_frames[0])
+        push_frame(ref_frames[0]->get_frame());
     m_pictures_pool.push_back(cur_pic);
 }
 
@@ -258,16 +256,16 @@ bool mp2v_decoder_c::decode(uint8_t* buffer, int len) {
         case sequence_header_code: parse_sequence_header(&m_bs, m_sequence_header); break;
         case extension_start_code: decode_extension_data(cur_pic);                  break;
         case group_start_code:     parse_group_of_pictures_header(&m_bs, *(m_group_of_pictures_header = new group_of_pictures_header_t)); break;
-        case picture_start_code: {
-                new_picture = true;
-                if (cur_pic) out_pic(cur_pic);
-                cur_pic = new_pic();
-                parse_picture_header(&m_bs, cur_pic->m_picture_header);
-                if (cur_pic->m_picture_header.picture_coding_type == picture_coding_type_pred || cur_pic->m_picture_header.picture_coding_type == picture_coding_type_intra) {
-                    ref_frames[0] = ref_frames[1];
-                    ref_frames[1] = cur_pic->get_frame();
-                }
+        case picture_start_code:
+            new_picture = true;
+            if (cur_pic) out_pic(cur_pic);
+            cur_pic = new_pic();
+            parse_picture_header(&m_bs, cur_pic->m_picture_header);
+            if (cur_pic->m_picture_header.picture_coding_type == picture_coding_type_pred || cur_pic->m_picture_header.picture_coding_type == picture_coding_type_intra) {
+                ref_frames[0] = ref_frames[1];
+                ref_frames[1] = cur_pic;
             }
+            for (auto* pic : ref_frames) cur_pic->add_dependency(pic);
             break;
         case user_data_start_code: decode_user_data(); break;
         case sequence_error_code:
@@ -283,7 +281,7 @@ bool mp2v_decoder_c::decode(uint8_t* buffer, int len) {
                 new_picture = false;
             }
         }
-    });
+        });
     if (!sequence_end) {
         flush_mini_gop();
         push_frame(nullptr);
@@ -329,6 +327,7 @@ mp2v_decoder_c::~mp2v_decoder_c() {
     for (auto* pic : m_pictures_pool)
         delete pic;
 #ifdef MP2V_MT
+    delete task_queue;
     for (auto*& thread : thread_pool)
         if (thread) {
             delete thread;

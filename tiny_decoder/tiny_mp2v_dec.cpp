@@ -56,8 +56,8 @@ int main(int argc, char* argv[])
     config.width = 1920;
     config.height = 1088;
     config.chroma_format = 2;
-    config.frames_pool_size = 100;
-    config.pictures_pool_size = 9; // I + P + 7B
+    config.frames_pool_size = 10;
+    config.pictures_pool_size = 10; // I + P + 7B
     config.reordering = true;
     config.num_threads = 4;
 

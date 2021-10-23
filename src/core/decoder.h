@@ -1,5 +1,6 @@
 // Copyright � 2021 Vladislav Ovchinnikov. All rights reserved.
 #pragma once
+#include <deque>
 #include <vector>
 #include <atomic>
 #include <thread>
@@ -97,10 +98,10 @@ protected:
     void out_pic(mp2v_picture_c* cur_pic);
     bool reordering = true;
     bitstream_reader_c m_bs;
-    frame_c* ref_frames[2] = { 0 };
+    mp2v_picture_c* ref_frames[2] = { 0 };
     ThreadSafeQ<frame_c*> m_frames_pool;
     ThreadSafeQ<frame_c*> m_output_frames;
-    std::vector<mp2v_picture_c*> m_pictures_pool;
+    std::deque<mp2v_picture_c*> m_pictures_pool;
 
 #ifdef MP2V_MT
     static void threadpool_task_scheduler(mp2v_decoder_c *dec);
