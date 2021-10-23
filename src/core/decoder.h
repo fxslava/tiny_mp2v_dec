@@ -11,7 +11,7 @@
 #include "api/bitstream.h"
 #include "mb_decoder.h"
 
-//#define MP2V_MT
+#define MP2V_MT
 
 constexpr int MAX_NUM_THREADS = 256;
 constexpr int MAX_B_FRAMES = 8;
@@ -21,7 +21,6 @@ class mp2v_picture_c;
 class mp2v_decoder_c;
 
 struct slice_task_t {
-    macroblock_context_cache_t task_cache;
     bitstream_reader_c bs;
 };
 
@@ -57,7 +56,7 @@ public:
     mp2v_picture_c(bitstream_reader_c* bitstream, mp2v_decoder_c* decoder, frame_c* frame) : m_bs(bitstream), m_dec(decoder), m_frame(frame) {};
     void init();
     void attach(frame_c* frame) { m_frame = frame; }
-    template <bool weak = false> bool decode_slice();
+    bool decode_slice(bitstream_reader_c bs);
     frame_c* get_frame() { return m_frame; }
 
 private:
@@ -79,6 +78,7 @@ public:
 
 #ifdef MP2V_MT
     std::vector<slice_task_t> picture_slices_tasks;
+    void add_task(bitstream_reader_c bs);
     bool decode_task(int task_id);
     void reset_task_list() { picture_slices_tasks.clear(); }
 #endif

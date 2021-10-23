@@ -59,7 +59,7 @@ int main(int argc, char* argv[])
     config.frames_pool_size = 100;
     config.pictures_pool_size = 9; // I + P + 7B
     config.reordering = true;
-    config.num_threads = 8;
+    config.num_threads = 4;
 
     std::string *bitstream_file = nullptr, *output_file = nullptr;
     std::vector<arg_desc_t> args_desc{

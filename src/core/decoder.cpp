@@ -86,8 +86,7 @@ static void make_macroblock_yuv_ptrs(uint8_t* (&yuv)[3], frame_c* frame, int mb_
     }
 }
 
-template <bool weak>
-bool mp2v_picture_c::decode_slice() {
+bool mp2v_picture_c::decode_slice(bitstream_reader_c bs) {
     auto* seq = m_dec;
     auto& pcext = m_picture_coding_extension;
     auto& sh = seq->m_sequence_header;
@@ -95,7 +94,7 @@ bool mp2v_picture_c::decode_slice() {
     slice_t slice = { 0 };
 
     // decode slice header
-    parse_slice_header(m_bs, slice, sh, seq->m_sequence_scalable_extension);
+    parse_slice_header(&bs, slice, sh, seq->m_sequence_scalable_extension);
 
     // calculate row position of the slice
     int mb_row = 0;
@@ -128,30 +127,21 @@ bool mp2v_picture_c::decode_slice() {
         else                                      cache.quantiser_scale = (slice.quantiser_scale_code - 17) << 3; }
     else                                          cache.quantiser_scale =  slice.quantiser_scale_code << 1;
 
-#ifdef MP2V_MT
-    if (weak) {
-        slice_task_t task;
-        task.task_cache = cache;
-        task.bs = *m_bs; // copy bitstream data
-        picture_slices_tasks.push_back(task);
-        return true;
-    }
-#endif
-
     // decode macroblocks
     do {
-        m_parse_macroblock_func(m_bs, cache);
-    } while (m_bs->get_next_bits(23) != 0);
+        m_parse_macroblock_func(&bs, cache);
+    } while (bs.get_next_bits(23) != 0);
     return true;
 }
 
 #ifdef MP2V_MT
+void mp2v_picture_c::add_task(bitstream_reader_c bs) {
+    picture_slices_tasks.push_back({ bs });
+}
+
 bool mp2v_picture_c::decode_task(int task_id) {
     auto& task = picture_slices_tasks[task_id];
-    do {
-        m_parse_macroblock_func(&task.bs, task.task_cache);
-    } while (task.bs.get_next_bits(23) != 0);
-    return true;
+    return decode_slice(task.bs);
 }
 #endif
 
@@ -372,9 +362,9 @@ bool mp2v_decoder_c::decode(uint8_t* buffer, int len) {
                 if (new_picture)
                     cur_pic->init();
 #ifdef MP2V_MT
-                cur_pic->decode_slice<true>();
+                cur_pic->add_task(m_bs);
 #else
-                cur_pic->decode_slice();
+                cur_pic->decode_slice(m_bs);
 #endif
                 new_picture = false;
             }
