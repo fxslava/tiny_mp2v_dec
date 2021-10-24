@@ -192,16 +192,15 @@ void task_queue_c::flush() {
         task->wait_for_free();
         task->reset();
     }
+    if (!done_tasks) {
+        std::unique_lock<std::mutex> lk(mtx);
+        cv_no_done.wait(lk, [this] { return done_tasks.load() == 0; });
+    }
 }
 
 void task_queue_c::kill() {
     flush();
     ready_to_go_tasks.store(-1);
-
-    if (!done_tasks) {
-        std::unique_lock<std::mutex> lk(mtx);
-        cv_no_done.wait(lk, [this] { return done_tasks.load() == 0; });
-    }
     done_tasks.store(-1);
     cv_done.notify_one();
 }
