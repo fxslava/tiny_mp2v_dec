@@ -13,24 +13,12 @@
 
 std::vector<uint32_t, AlignmentAllocator<uint8_t, 32>> buffer_pool;
 
-void stream_writer_func(mp2v_decoder_c* mp2v_decoder, std::string output_file) {
-    FILE* fp = fopen(output_file.c_str(), "wb");
-
-    frame_c* frame = nullptr;
-    mp2v_decoder->get_decoded_frame(frame);
-
-    while (frame) {
-        for (int i = 0; i < 3; i++) {
-            uint8_t* plane = frame->get_planes(i);
-            for (int y = 0; y < frame->get_height(i); y++, plane += frame->get_strides(i))
-                fwrite(plane, 1, frame->get_width(i), fp);
-        }
-
-        mp2v_decoder->release_frame(frame);
-        mp2v_decoder->get_decoded_frame(frame);
+void write_yuv(FILE* fp, frame_c* frame) {
+    for (int i = 0; i < 3; i++) {
+        uint8_t* plane = frame->get_planes(i);
+        for (int y = 0; y < frame->get_height(i); y++, plane += frame->get_strides(i))
+            fwrite(plane, 1, frame->get_width(i), fp);
     }
-
-    fclose(fp);
 }
 
 void load_bitstream(std::string input_file) {
@@ -59,7 +47,7 @@ int main(int argc, char* argv[])
     config.frames_pool_size = 10;
     config.pictures_pool_size = 10; // I + P + 7B
     config.reordering = true;
-    config.num_threads = 4;
+    config.num_threads = 8;
 
     std::string *bitstream_file = nullptr, *output_file = nullptr;
     std::vector<arg_desc_t> args_desc{
@@ -73,8 +61,8 @@ int main(int argc, char* argv[])
         load_bitstream(*bitstream_file);
         mp2v_decoder_c mp2v_decoder;
 
-        std::thread stream_writer(stream_writer_func, &mp2v_decoder, *output_file);
-        mp2v_decoder.decoder_init(&config);
+        FILE* fp = fopen(output_file->c_str(), "wb");
+        mp2v_decoder.decoder_init(&config, [fp](frame_c* frame) { write_yuv(fp, frame); });
 
         const auto start = std::chrono::system_clock::now();
 
@@ -90,6 +78,6 @@ int main(int argc, char* argv[])
         auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
         printf("Time = %.2f ms\n", static_cast<double>(elapsed_ms.count()));
 
-        stream_writer.join();
+        fclose(fp);
     }
 }

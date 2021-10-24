@@ -77,6 +77,7 @@ bool picture_task_c::slice_done() {
         for (int i = 0; i < num_dependencies; i++)
             if (dependencies[i])
                 dependencies[i]->release_waiter();
+        owner->pic_done();
         cv_completed.notify_all();
         if (non_referenceable)
             cv_free.notify_all();
@@ -112,12 +113,20 @@ void task_queue_c::next_task(int pic_idx) {
     head.store(new_head);
 }
 
+void task_queue_c::pic_done() {
+    int num_done = ++done_tasks;
+    if (num_done)
+        cv_done.notify_one();
+}
+
 task_queue_c::task_queue_c(int size, std::function<picture_task_c* ()> constructor) :
     task_queue(size),
+    done_tasks(0),
     ready_to_go_tasks(0),
     head(TASKQUEUE_HEAD | TASKQUEUE_HEAD_NOWORK)
 {
     std::generate(task_queue.begin(), task_queue.end(), constructor);
+    for (auto* task : task_queue) task->owner = this;
 }
 
 task_status_e task_queue_c::get_task(slice_task_c*& slice_task) {
@@ -152,6 +161,21 @@ picture_task_c* task_queue_c::create_task() {
     return task_place;
 }
 
+picture_task_c* task_queue_c::get_decoded() {
+    auto& task_place = task_queue[tail_decoded++];
+    task_place->wait_for_completion();
+    tail_decoded %= task_queue.size();
+    if (!done_tasks) {
+        std::unique_lock<std::mutex> lk(mtx);
+        cv_done.wait(lk, [this] { return (done_tasks > 0) || (done_tasks < 0); });
+    }
+    if (done_tasks < 0) return nullptr;
+    int done_pics = --done_tasks;
+    if (!done_pics)
+        cv_no_done.notify_one();
+    return task_place;
+}
+
 void task_queue_c::add_task(picture_task_c* task, bool non_referenceable) {
     task->non_referenceable = non_referenceable;
     if (status == QUEUE_SUSPENDED) {
@@ -173,4 +197,11 @@ void task_queue_c::flush() {
 void task_queue_c::kill() {
     flush();
     ready_to_go_tasks.store(-1);
+
+    if (!done_tasks) {
+        std::unique_lock<std::mutex> lk(mtx);
+        cv_no_done.wait(lk, [this] { return done_tasks.load() == 0; });
+    }
+    done_tasks.store(-1);
+    cv_done.notify_one();
 }

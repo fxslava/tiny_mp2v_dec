@@ -223,6 +223,7 @@ void mp2v_decoder_c::flush(mp2v_picture_c* cur_pic) {
 #else
     if (ref_frames[1])
         push_frame(ref_frames[1]->get_frame());
+    push_frame(nullptr);
 #endif
 }
 
@@ -230,6 +231,7 @@ mp2v_picture_c* mp2v_decoder_c::new_pic() {
     mp2v_picture_c* res = nullptr;
 #ifdef MP2V_MT
     res = (mp2v_picture_c*)task_queue->create_task();
+    res->add_waiter();
 #else
     res = m_pictures_pool.front();
     res->reset();
@@ -286,7 +288,6 @@ bool mp2v_decoder_c::decode(uint8_t* buffer, int len) {
         case sequence_error_code:
         case sequence_end_code:
             flush(cur_pic);
-            push_frame(nullptr);
             sequence_end = true;
             break;
         default:
@@ -303,10 +304,8 @@ bool mp2v_decoder_c::decode(uint8_t* buffer, int len) {
             }
         }
         });
-    if (!sequence_end) {
+    if (!sequence_end)
         flush(cur_pic);
-        push_frame(nullptr);
-    }
     return true;
 }
 
@@ -323,23 +322,34 @@ void mp2v_decoder_c::threadpool_task_scheduler(mp2v_decoder_c* dec) {
         slice_task->done();
     }
 }
+
+void mp2v_decoder_c::decoder_output_scheduler(mp2v_decoder_c* dec) {
+    mp2v_picture_c* pic = nullptr;
+    while(1) {
+        pic = (mp2v_picture_c*)dec->task_queue->get_decoded();
+        if (!pic) break;
+        dec->render_func(pic->get_frame());
+        pic->release_waiter();
+    }
+}
 #endif
 
-bool mp2v_decoder_c::decoder_init(decoder_config_t* config) {
+bool mp2v_decoder_c::decoder_init(decoder_config_t* config, std::function<void(frame_c*)> renderer) {
     int pool_size = config->frames_pool_size;
     int num_pics = config->pictures_pool_size;
     int width = config->width;
     int height = config->height;
     int chroma_format = config->chroma_format;
     reordering = config->reordering;
+    render_func = renderer;
 
 #ifdef MP2V_MT
     task_queue = new task_queue_c(num_pics, [&]() -> picture_task_c* { 
         return new mp2v_picture_c(this, new frame_c(width, height, chroma_format));
         });
-    num_threads = config->num_threads;
-    for (int i = 0; i < num_threads; i++)
+    for (int i = 0; i < config->num_threads; i++)
         thread_pool[i] = new std::thread(threadpool_task_scheduler, this);
+    render_thread = new std::thread(decoder_output_scheduler, this);
 #else
     for (int i = 0; i < pool_size; i++)
         m_frames_pool.push(new frame_c(width, height, chroma_format));
@@ -357,6 +367,10 @@ mp2v_decoder_c::~mp2v_decoder_c() {
             thread->join();
             delete thread;
         }
+    if (render_thread && render_thread->joinable()) {
+        render_thread->join();
+        delete render_thread;
+    }
     delete task_queue;
 #else
     for (auto* pic : m_pictures_pool)
