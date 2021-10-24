@@ -215,29 +215,43 @@ bool mp2v_decoder_c::decode_extension_data(mp2v_picture_c* pic) {
     return true;
 }
 
-void mp2v_decoder_c::flush_mini_gop() {
+void mp2v_decoder_c::flush(mp2v_picture_c* cur_pic) {
+#ifdef MP2V_MT
+    if (cur_pic)
+        task_queue->add_task(cur_pic, cur_pic->m_picture_header.picture_coding_type == picture_coding_type_bidir);
+    task_queue->kill();
+#else
     if (ref_frames[1])
         push_frame(ref_frames[1]->get_frame());
+#endif
 }
 
 mp2v_picture_c* mp2v_decoder_c::new_pic() {
     mp2v_picture_c* res = nullptr;
-    frame_c* frame = nullptr;
-    m_frames_pool.pop(frame);
+#ifdef MP2V_MT
+    res = (mp2v_picture_c*)task_queue->create_task();
+#else
     res = m_pictures_pool.front();
     res->reset();
-    res->attach(frame);
     m_pictures_pool.pop_front();
+    frame_c* frame = nullptr;
+    m_frames_pool.pop(frame);
+    res->attach(frame);
+#endif
     return res;
 }
 
 void mp2v_decoder_c::out_pic(mp2v_picture_c* cur_pic) {
+#ifdef MP2V_MT
+    task_queue->add_task(cur_pic, cur_pic->m_picture_header.picture_coding_type == picture_coding_type_bidir);
+#else
     auto* frame = cur_pic->get_frame();
     if (cur_pic->m_picture_header.picture_coding_type == picture_coding_type_bidir || !reordering)
         push_frame(frame);
     else if (ref_frames[0])
         push_frame(ref_frames[0]->get_frame());
     m_pictures_pool.push_back(cur_pic);
+#endif
 }
 
 bool mp2v_decoder_c::decode(uint8_t* buffer, int len) {
@@ -262,38 +276,50 @@ bool mp2v_decoder_c::decode(uint8_t* buffer, int len) {
             cur_pic = new_pic();
             parse_picture_header(&m_bs, cur_pic->m_picture_header);
             if (cur_pic->m_picture_header.picture_coding_type == picture_coding_type_pred || cur_pic->m_picture_header.picture_coding_type == picture_coding_type_intra) {
+                cur_pic->add_dependency(ref_frames[1]);
                 ref_frames[0] = ref_frames[1];
                 ref_frames[1] = cur_pic;
-            }
-            for (auto* pic : ref_frames) cur_pic->add_dependency(pic);
+            } else
+                for (auto* pic : ref_frames) cur_pic->add_dependency(pic);
             break;
         case user_data_start_code: decode_user_data(); break;
         case sequence_error_code:
         case sequence_end_code:
-            flush_mini_gop();
+            flush(cur_pic);
             push_frame(nullptr);
             sequence_end = true;
             break;
         default:
             if ((start_code >= slice_start_code_min) && (start_code <= slice_start_code_max)) {
                 if (new_picture) cur_pic->init();
+#ifdef MP2V_MT
+                auto tsk = new mp2v_slice_task_c();
+                tsk->bs = m_bs;
+                cur_pic->add_slice_task(tsk);
+#else
                 cur_pic->decode_slice(m_bs);
+#endif
                 new_picture = false;
             }
         }
         });
     if (!sequence_end) {
-        flush_mini_gop();
+        flush(cur_pic);
         push_frame(nullptr);
     }
     return true;
+}
+
+void mp2v_slice_task_c::decode() {
+    auto pic = (mp2v_picture_c*)owner;
+    pic->decode_slice(bs);
 }
 
 #ifdef MP2V_MT
 void mp2v_decoder_c::threadpool_task_scheduler(mp2v_decoder_c* dec) {
     mp2v_slice_task_c* slice_task = nullptr;
     while (dec->task_queue->get_task((slice_task_c*&)slice_task) == TASK_QUEUE_SUCCESS) {
-        
+        slice_task->decode();
         slice_task->done();
     }
 }
@@ -307,15 +333,16 @@ bool mp2v_decoder_c::decoder_init(decoder_config_t* config) {
     int chroma_format = config->chroma_format;
     reordering = config->reordering;
 
-    for (int i = 0; i < pool_size; i++)
-        m_frames_pool.push(new frame_c(width, height, chroma_format));
-
 #ifdef MP2V_MT
-    task_queue = new task_queue_c(num_pics, [this]() -> picture_task_c* { return new mp2v_picture_c(this, nullptr); });
+    task_queue = new task_queue_c(num_pics, [&]() -> picture_task_c* { 
+        return new mp2v_picture_c(this, new frame_c(width, height, chroma_format));
+        });
     num_threads = config->num_threads;
     for (int i = 0; i < num_threads; i++)
         thread_pool[i] = new std::thread(threadpool_task_scheduler, this);
 #else
+    for (int i = 0; i < pool_size; i++)
+        m_frames_pool.push(new frame_c(width, height, chroma_format));
     for (int i = 0; i < num_pics; i++)
         m_pictures_pool.push_back(new mp2v_picture_c(this, nullptr));
 #endif
@@ -324,14 +351,15 @@ bool mp2v_decoder_c::decoder_init(decoder_config_t* config) {
 }
 
 mp2v_decoder_c::~mp2v_decoder_c() {
+#ifdef MP2V_MT
+    for (auto*& thread : thread_pool)
+        if (thread && thread->joinable()) {
+            thread->join();
+            delete thread;
+        }
+    delete task_queue;
+#else
     for (auto* pic : m_pictures_pool)
         delete pic;
-#ifdef MP2V_MT
-    delete task_queue;
-    for (auto*& thread : thread_pool)
-        if (thread) {
-            delete thread;
-            thread = nullptr;
-        }
 #endif
 }

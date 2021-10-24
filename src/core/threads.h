@@ -24,8 +24,8 @@ class task_queue_c;
 class slice_task_c {
 protected:
     friend class picture_task_c;
-    picture_task_c* owner = nullptr;
 public:
+    picture_task_c* owner = nullptr;
     virtual bool done();
 };
 

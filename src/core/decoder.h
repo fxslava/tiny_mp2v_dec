@@ -13,7 +13,7 @@
 #include "mb_decoder.h"
 #include "threads.h"
 
-//#define MP2V_MT
+#define MP2V_MT
 
 constexpr int MAX_NUM_THREADS = 256;
 constexpr int MAX_B_FRAMES = 8;
@@ -21,11 +21,6 @@ constexpr int CACHE_LINE = 64;
 
 class mp2v_picture_c;
 class mp2v_decoder_c;
-
-class mp2v_slice_task_c : public slice_task_c {
-public:
-    bitstream_reader_c bs;
-};
 
 struct decoder_config_t {
     int width;
@@ -52,6 +47,12 @@ private:
     uint32_t m_height[3] = { 0 };
     uint32_t m_stride[3] = { 0 };
     uint8_t* m_planes[3] = { 0 };
+};
+
+class mp2v_slice_task_c : public slice_task_c {
+public:
+    bitstream_reader_c bs;
+    void decode();
 };
 
 class mp2v_picture_c : public picture_task_c {
@@ -88,12 +89,12 @@ public:
     bool decode(uint8_t* buffer, int len);
     void get_decoded_frame(frame_c*& frame) { m_output_frames.pop(frame); }
     void release_frame(frame_c* frame) { m_frames_pool.push(frame); }
+    void flush(mp2v_picture_c* cur_pic = nullptr);
 
 protected:
     bool decode_user_data();
     bool decode_extension_data(mp2v_picture_c* pic);
     void push_frame(frame_c* frame) { m_output_frames.push(frame); }
-    void flush_mini_gop();
     mp2v_picture_c* new_pic();
     void out_pic(mp2v_picture_c* cur_pic);
     bool reordering = true;
