@@ -1,4 +1,4 @@
-project(tiny_mp2v_enc)
+project(tiny_mp2v_dec)
 
 set(CMAKE_CXX_STANDARD 11)
 
@@ -41,13 +41,3 @@ add_library(
 set_target_properties(${PROJECT_NAME} PROPERTIES PUBLIC_HEADER INC_DIRECTORIES)
 target_include_directories(${PROJECT_NAME} PRIVATE .)
 set_target_properties(${PROJECT_NAME} PROPERTIES FOLDER "libs")
-	
-add_library(
-	${PROJECT_NAME}_static
-	SHARED
-		${SOURCES}
-	)
-	
-set_target_properties(${PROJECT_NAME}_static PROPERTIES PUBLIC_HEADER INC_DIRECTORIES)
-target_include_directories(${PROJECT_NAME}_static PRIVATE .)
-set_target_properties(${PROJECT_NAME}_static PROPERTIES FOLDER "libs")

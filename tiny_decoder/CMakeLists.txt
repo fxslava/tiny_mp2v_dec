@@ -1,4 +1,4 @@
-project(tiny_mp2v_dec)
+project(tiny_mp2v_dec_sample)
 
 include_directories(../sample_common)
 include_directories(../src)
@@ -17,7 +17,7 @@ add_executable(
 
 set(
     DEPS_LIBRARIES
-        tiny_mp2v_enc
+        tiny_mp2v_dec
 )
 
 if(WIN32)
