@@ -2,7 +2,7 @@
 #pragma once
 #include <stdint.h>
 #include "common/cpu.hpp"
-#include "api/bitstream.h"
+#include "bitstream.h"
 
 struct vlc_t {
     uint16_t value;

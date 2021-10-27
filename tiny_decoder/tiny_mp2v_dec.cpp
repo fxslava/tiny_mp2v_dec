@@ -4,7 +4,6 @@
 #include <chrono>
 #include <iostream>
 #include "sample_args.h"
-#include "bitstream.h"
 #include "core/decoder.h"
 
 #if defined(_M_X64)
@@ -27,7 +26,7 @@ void load_bitstream(std::string input_file) {
     // Calculate size of buffer
     fp.seekg(0, std::ios_base::end);
     std::size_t size = fp.tellg();
-    size = ((size + 15) & (~15)) + 2;
+    size = ((size + 15) & (~15));
     fp.seekg(0, std::ios_base::beg);
 
     // Allocate buffer
@@ -44,7 +43,6 @@ int main(int argc, char* argv[])
     config.width = 1920;
     config.height = 1088;
     config.chroma_format = 2;
-    config.frames_pool_size = 10;
     config.pictures_pool_size = 10; // I + P + 7B
     config.reordering = true;
     config.num_threads = 8;
@@ -62,7 +60,7 @@ int main(int argc, char* argv[])
         if (bitstream_file && fp) {
             load_bitstream(*bitstream_file);
             mp2v_decoder_c mp2v_decoder;
-            mp2v_decoder.decoder_init(&config, [fp](frame_c* frame) { write_yuv(fp, frame); });
+            mp2v_decoder.decoder_init(&config, [fp](frame_c* frame) { /*write_yuv(fp, frame);*/ });
 
             const auto start = std::chrono::system_clock::now();
 

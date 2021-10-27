@@ -7,8 +7,6 @@
 #include "misc.hpp"
 #include "start_codes_search.hpp"
 
-#define CHECK(p) { if (!(p)) return false; }
-
 struct spatial_temporal_weights_classes_t {
     uint8_t spatial_temporal_weight_fract[2]; // 0 - 0.0, 1 - 0.5, 2 - 1.0
     uint8_t spatial_temporal_weight_class;
@@ -353,7 +351,6 @@ void mp2v_decoder_c::decoder_output_scheduler(mp2v_decoder_c* dec) {
 }
 
 bool mp2v_decoder_c::decoder_init(decoder_config_t* config, std::function<void(frame_c*)> renderer) {
-    int pool_size = config->frames_pool_size;
     int num_pics = config->pictures_pool_size;
     int width = config->width;
     int height = config->height;

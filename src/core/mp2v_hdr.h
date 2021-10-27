@@ -2,7 +2,7 @@
 
 #pragma once
 #include <stdint.h>
-#include "api/bitstream.h"
+#include "bitstream.h"
 
 constexpr uint32_t macroblock_quant_bit = 0b100000;
 constexpr uint32_t macroblock_motion_forward_bit = 0b10000;

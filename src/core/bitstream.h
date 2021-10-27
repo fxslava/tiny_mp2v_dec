@@ -36,7 +36,11 @@ public:
     bitstream_reader_c() {}
     ~bitstream_reader_c() {}
 
-    void set_bitstream_buffer(uint8_t* bitstream_buffer) { buffer_ptr = (uint32_t*)bitstream_buffer; }
+    void set_bitstream_buffer(uint8_t* bitstream_buffer) { 
+        buffer_ptr = (uint32_t*)bitstream_buffer;
+        buffer = 0;
+        buffer_idx = 64;
+    }
 
     MP2V_INLINE uint32_t get_next_bits(int len) {
         update_buffer();

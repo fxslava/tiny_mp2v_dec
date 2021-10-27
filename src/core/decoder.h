@@ -9,7 +9,7 @@
 
 #include "common/queue.hpp"
 #include "mp2v_hdr.h"
-#include "api/bitstream.h"
+#include "bitstream.h"
 #include "mb_decoder.h"
 #include "threads.h"
 
@@ -26,7 +26,6 @@ struct decoder_config_t {
     int width;
     int height;
     int chroma_format;
-    int frames_pool_size;
     int pictures_pool_size;
     int num_threads;
     bool reordering;
