@@ -350,19 +350,19 @@ void mp2v_decoder_c::decoder_output_scheduler(mp2v_decoder_c* dec) {
 #endif
 }
 
-bool mp2v_decoder_c::decoder_init(decoder_config_t* config, std::function<void(frame_c*)> renderer) {
-    int num_pics = config->pictures_pool_size;
-    int width = config->width;
-    int height = config->height;
-    int chroma_format = config->chroma_format;
-    reordering = config->reordering;
+bool mp2v_decoder_c::decoder_init(const decoder_config_t &config, std::function<void(frame_c*)> renderer) {
+    int num_pics = config.pictures_pool_size;
+    int width = config.width;
+    int height = config.height;
+    int chroma_format = config.chroma_format;
+    reordering = config.reordering;
     render_func = renderer;
 
 #ifdef MP2V_MT
     task_queue = new task_queue_c(num_pics, [&]() -> picture_task_c* {
         return new mp2v_picture_c(this, new frame_c(width, height, chroma_format));
         });
-    for (int i = 0; i < config->num_threads; i++)
+    for (int i = 0; i < config.num_threads; i++)
         thread_pool[i] = new std::thread(threadpool_task_scheduler, this);
 #else
     for (int i = 0; i < num_pics; i++) {

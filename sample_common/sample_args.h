@@ -18,6 +18,7 @@ struct arg_desc_t {
 
 class args_parser {
 public:
+    args_parser(std::vector<arg_desc_t> args_desc, int argc, char* argv[]);
     args_parser(std::vector<arg_desc_t> args_desc);
     ~args_parser();
     void parse(int argc, char* argv[]);

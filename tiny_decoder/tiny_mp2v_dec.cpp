@@ -35,35 +35,23 @@ void load_bitstream(std::string input_file) {
 
 int main(int argc, char* argv[])
 {
-    decoder_config_t config;
-    config.width = 1920;
-    config.height = 1088;
-    config.chroma_format = 2;
-    config.pictures_pool_size = 10; // I + P + 7B
-    config.reordering = true;
-    config.num_threads = 8;
-
-    std::string *bitstream_file = nullptr, *output_file = nullptr;
-    std::vector<arg_desc_t> args_desc{
+    std::string* bitstream_file = nullptr, * output_file = nullptr;
+    args_parser cmd_parser({
         { "-v", "Input MPEG2 elementary bitsream file", ARG_TYPE_TEXT, &bitstream_file },
         { "-o", "Output YUV stream", ARG_TYPE_TEXT, &output_file }
-    };
-    args_parser cmd_parser(args_desc);
-    cmd_parser.parse(argc, argv);
+        }, argc, argv);
 
     if (output_file) {
         FILE* fp = fopen(output_file->c_str(), "wb");
         if (bitstream_file && fp) {
             load_bitstream(*bitstream_file);
-            mp2v_decoder_c mp2v_decoder;
-            mp2v_decoder.decoder_init(&config, [fp](frame_c* frame) { write_yuv(fp, frame); });
+            mp2v_decoder_c mp2v_decoder({ 1920, 1088, 2, 10, 8, true }, [fp](frame_c* frame) { write_yuv(fp, frame); });
 
             const auto start = std::chrono::system_clock::now();
 
             mp2v_decoder.decode((uint8_t*)&buffer_pool[0], buffer_pool.size() * 4);
 
-            const auto end = std::chrono::system_clock::now();
-            auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+            auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - start);
             printf("Time = %.2f ms\n", static_cast<double>(elapsed_ms.count()));
         }
         fclose(fp);

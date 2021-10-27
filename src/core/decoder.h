@@ -87,8 +87,15 @@ public:
         : m_done_pics(100), m_free_pics(100)
 #endif
     {};
+    mp2v_decoder_c(const decoder_config_t& config, std::function<void(frame_c*)> renderer)
+#ifndef MP2V_MT
+        : m_done_pics(100), m_free_pics(100)
+#endif
+    {
+        decoder_init(config, renderer);
+    };
     ~mp2v_decoder_c();
-    bool decoder_init(decoder_config_t* config, std::function<void(frame_c*)> renderer);
+    bool decoder_init(const decoder_config_t& config, std::function<void(frame_c*)> renderer);
     bool decode(uint8_t* buffer, int len);
     void flush(mp2v_picture_c* cur_pic = nullptr);
 

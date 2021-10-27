@@ -17,7 +17,7 @@ add_executable(
 target_link_libraries(
     ${PROJECT_NAME}
     PRIVATE
-        tiny_mp2v_enc
+        tiny_mp2v_dec
         gtest_main
   )
 

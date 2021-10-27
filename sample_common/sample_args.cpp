@@ -8,6 +8,13 @@ args_parser::args_parser(std::vector<arg_desc_t> args_desc) {
     }
 }
 
+args_parser::args_parser(std::vector<arg_desc_t> args_desc, int argc, char* argv[]) {
+    for (auto& desc : args_desc) {
+        m_args_map[desc.key] = desc;
+    }
+    parse(argc, argv);
+}
+
 void args_parser::parse(int argc, char* argv[]) {
     for (int arg = 0; arg < argc; arg++) {
         std::string key = argv[arg];
