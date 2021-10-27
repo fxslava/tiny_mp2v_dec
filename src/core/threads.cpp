@@ -41,6 +41,7 @@ void picture_task_c::reset() {
     non_referenceable = false;
     done_slices.store(0);
     num_waiters.store(0);
+    render.store(false);
     slices_tasks.clear();
 }
 
@@ -49,6 +50,11 @@ void picture_task_c::add_waiter() { num_waiters++; }
 void picture_task_c::wait_for_free() {
     std::unique_lock<std::mutex> lk(mtx);
     cv_free.wait(lk, [this] { return num_waiters == 0; });
+}
+
+void picture_task_c::wait_for_render() {
+    std::unique_lock<std::mutex> lk(mtx);
+    cv_render.wait(lk, [this] { return render.load(); });
 }
 
 void picture_task_c::wait_for_completion() {
@@ -66,6 +72,13 @@ void picture_task_c::release_waiter() {
     if (is_free) cv_free.notify_all();
 }
 
+void picture_task_c::render_done() {
+    std::unique_lock<std::mutex> lk(mtx);
+    render.store(true);
+    lk.unlock();
+    cv_render.notify_one();
+}
+
 bool picture_task_c::slice_done() {
     bool pic_done = false;
     {
@@ -77,7 +90,6 @@ bool picture_task_c::slice_done() {
         for (int i = 0; i < num_dependencies; i++)
             if (dependencies[i])
                 dependencies[i]->release_waiter();
-        owner->pic_done();
         cv_completed.notify_all();
         if (non_referenceable)
             cv_free.notify_all();
@@ -113,15 +125,9 @@ void task_queue_c::next_task(int pic_idx) {
     head.store(new_head);
 }
 
-void task_queue_c::pic_done() {
-    int num_done = ++done_tasks;
-    if (num_done)
-        cv_done.notify_one();
-}
-
 task_queue_c::task_queue_c(int size, std::function<picture_task_c* ()> constructor) :
     task_queue(size),
-    done_tasks(0),
+    render_flush(false),
     ready_to_go_tasks(0),
     head(TASKQUEUE_HEAD | TASKQUEUE_HEAD_NOWORK)
 {
@@ -156,23 +162,26 @@ picture_task_c* task_queue_c::create_task() {
     auto& task_place = task_queue[head_to_work++];
     head_to_work %= task_queue.size();
     task_place->wait_for_completion();
+    task_place->wait_for_render();
     task_place->wait_for_free();
     task_place->reset();
     return task_place;
 }
 
 picture_task_c* task_queue_c::get_decoded() {
-    auto& task_place = task_queue[tail_decoded++];
-    task_place->wait_for_completion();
-    tail_decoded %= task_queue.size();
-    if (!done_tasks) {
-        std::unique_lock<std::mutex> lk(mtx);
-        cv_done.wait(lk, [this] { return (done_tasks > 0) || (done_tasks < 0); });
+    picture_task_c* task_place = nullptr;
+    while (1) {
+        task_place = task_queue[tail_decoded];
+        task_place->wait_for_completion();
+        if (!task_place->render.load()) {
+            tail_decoded = (tail_decoded + 1ll) % task_queue.size();
+            break;
+        }
+        if (render_flush.load()) {
+            task_place = nullptr;
+            break;
+        }
     }
-    if (done_tasks < 0) return nullptr;
-    int done_pics = --done_tasks;
-    if (!done_pics)
-        cv_no_done.notify_one();
     return task_place;
 }
 
@@ -190,17 +199,13 @@ void task_queue_c::flush() {
     for (auto* task : task_queue) {
         task->wait_for_completion();
         task->wait_for_free();
-        task->reset();
-    }
-    if (!done_tasks) {
-        std::unique_lock<std::mutex> lk(mtx);
-        cv_no_done.wait(lk, [this] { return done_tasks.load() == 0; });
     }
 }
 
 void task_queue_c::kill() {
     flush();
     ready_to_go_tasks.store(-1);
-    done_tasks.store(-1);
-    cv_done.notify_one();
+    render_flush.store(true);
+    for (auto* task : task_queue)
+        task->wait_for_render();
 }

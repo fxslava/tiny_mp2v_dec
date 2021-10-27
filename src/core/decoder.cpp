@@ -222,8 +222,8 @@ void mp2v_decoder_c::flush(mp2v_picture_c* cur_pic) {
     task_queue->kill();
 #else
     if (ref_frames[1])
-        push_frame(ref_frames[1]->get_frame());
-    push_frame(nullptr);
+        m_done_pics.push(ref_frames[1]);
+    m_done_pics.push(nullptr);
 #endif
 }
 
@@ -231,14 +231,9 @@ mp2v_picture_c* mp2v_decoder_c::new_pic() {
     mp2v_picture_c* res = nullptr;
 #ifdef MP2V_MT
     res = (mp2v_picture_c*)task_queue->create_task();
-    res->add_waiter();
 #else
-    res = m_pictures_pool.front();
+    m_free_pics.pop(res);
     res->reset();
-    m_pictures_pool.pop_front();
-    frame_c* frame = nullptr;
-    m_frames_pool.pop(frame);
-    res->attach(frame);
 #endif
     return res;
 }
@@ -247,12 +242,10 @@ void mp2v_decoder_c::out_pic(mp2v_picture_c* cur_pic) {
 #ifdef MP2V_MT
     task_queue->add_task(cur_pic, cur_pic->m_picture_header.picture_coding_type == picture_coding_type_bidir);
 #else
-    auto* frame = cur_pic->get_frame();
     if (cur_pic->m_picture_header.picture_coding_type == picture_coding_type_bidir || !reordering)
-        push_frame(frame);
+        m_done_pics.push(cur_pic);
     else if (ref_frames[0])
-        push_frame(ref_frames[0]->get_frame());
-    m_pictures_pool.push_back(cur_pic);
+            m_done_pics.push(ref_frames[0]);
 #endif
 }
 
@@ -322,17 +315,42 @@ void mp2v_decoder_c::threadpool_task_scheduler(mp2v_decoder_c* dec) {
         slice_task->done();
     }
 }
+#endif
 
 void mp2v_decoder_c::decoder_output_scheduler(mp2v_decoder_c* dec) {
+#ifdef MP2V_MT
     mp2v_picture_c* pic = nullptr;
-    while(1) {
+    mp2v_picture_c* refs[2] = { 0 };
+    while (1) {
         pic = (mp2v_picture_c*)dec->task_queue->get_decoded();
         if (!pic) break;
-        dec->render_func(pic->get_frame());
-        pic->release_waiter();
+        if (pic->m_picture_header.picture_coding_type == picture_coding_type_bidir || !dec->reordering) {
+            dec->render_func(pic->get_frame());
+            pic->render_done();
+        }
+        else {
+            refs[0] = refs[1];
+            refs[1] = pic;
+            if (refs[0]) {
+                dec->render_func(refs[0]->get_frame());
+                refs[0]->render_done();
+            }
+        }
     }
-}
+    if (refs[1]) {
+        dec->render_func(refs[1]->get_frame());
+        refs[1]->render_done();
+    }
+#else
+    mp2v_picture_c* pic = nullptr;
+    while (1) {
+        dec->m_done_pics.pop(pic);
+        if (!pic) break;
+        dec->render_func(pic->get_frame());
+        dec->m_free_pics.push(pic);
+    };
 #endif
+}
 
 bool mp2v_decoder_c::decoder_init(decoder_config_t* config, std::function<void(frame_c*)> renderer) {
     int pool_size = config->frames_pool_size;
@@ -344,36 +362,40 @@ bool mp2v_decoder_c::decoder_init(decoder_config_t* config, std::function<void(f
     render_func = renderer;
 
 #ifdef MP2V_MT
-    task_queue = new task_queue_c(num_pics, [&]() -> picture_task_c* { 
+    task_queue = new task_queue_c(num_pics, [&]() -> picture_task_c* {
         return new mp2v_picture_c(this, new frame_c(width, height, chroma_format));
         });
     for (int i = 0; i < config->num_threads; i++)
         thread_pool[i] = new std::thread(threadpool_task_scheduler, this);
-    render_thread = new std::thread(decoder_output_scheduler, this);
 #else
-    for (int i = 0; i < pool_size; i++)
-        m_frames_pool.push(new frame_c(width, height, chroma_format));
-    for (int i = 0; i < num_pics; i++)
-        m_pictures_pool.push_back(new mp2v_picture_c(this, nullptr));
+    for (int i = 0; i < num_pics; i++) {
+        auto pic = new mp2v_picture_c(this, new frame_c(width, height, chroma_format));
+        m_pictures_pool.push_back(pic);
+        m_free_pics.push(pic);
+    }
 #endif
+
+    render_thread = new std::thread(decoder_output_scheduler, this);
 
     return true;
 }
 
 mp2v_decoder_c::~mp2v_decoder_c() {
+    if (render_thread && render_thread->joinable()) {
+        render_thread->join();
+        delete render_thread;
+    }
 #ifdef MP2V_MT
     for (auto*& thread : thread_pool)
         if (thread && thread->joinable()) {
             thread->join();
             delete thread;
         }
-    if (render_thread && render_thread->joinable()) {
-        render_thread->join();
-        delete render_thread;
-    }
     delete task_queue;
 #else
-    for (auto* pic : m_pictures_pool)
+    for (auto* pic : m_pictures_pool) {
+        delete pic->get_frame();
         delete pic;
+    }
 #endif
 }

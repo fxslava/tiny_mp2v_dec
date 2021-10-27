@@ -57,27 +57,27 @@ int main(int argc, char* argv[])
     args_parser cmd_parser(args_desc);
     cmd_parser.parse(argc, argv);
 
-    if (bitstream_file) {
-        load_bitstream(*bitstream_file);
-        mp2v_decoder_c mp2v_decoder;
-
+    if (output_file) {
         FILE* fp = fopen(output_file->c_str(), "wb");
-        mp2v_decoder.decoder_init(&config, [fp](frame_c* frame) { write_yuv(fp, frame); });
+        if (bitstream_file && fp) {
+            load_bitstream(*bitstream_file);
+            mp2v_decoder_c mp2v_decoder;
+            mp2v_decoder.decoder_init(&config, [fp](frame_c* frame) { write_yuv(fp, frame); });
 
-        const auto start = std::chrono::system_clock::now();
+            const auto start = std::chrono::system_clock::now();
 
 #if defined(_M_X64)
-        __itt_resume();
-        mp2v_decoder.decode((uint8_t*)&buffer_pool[0], buffer_pool.size() * 4);
-        __itt_pause();
+            __itt_resume();
+            mp2v_decoder.decode((uint8_t*)&buffer_pool[0], buffer_pool.size() * 4);
+            __itt_pause();
 #else
-        mp2v_decoder.decode((uint8_t*)&buffer_pool[0], buffer_pool.size() * 4);
+            mp2v_decoder.decode((uint8_t*)&buffer_pool[0], buffer_pool.size() * 4);
 #endif
 
-        const auto end = std::chrono::system_clock::now();
-        auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-        printf("Time = %.2f ms\n", static_cast<double>(elapsed_ms.count()));
-
+            const auto end = std::chrono::system_clock::now();
+            auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+            printf("Time = %.2f ms\n", static_cast<double>(elapsed_ms.count()));
+        }
         fclose(fp);
     }
 }

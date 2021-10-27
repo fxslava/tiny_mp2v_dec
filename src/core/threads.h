@@ -31,13 +31,13 @@ public:
 
 class picture_task_c {
 public:
-    picture_task_c() : done_slices(0), num_waiters(0) {}
+    picture_task_c() : done_slices(0), num_waiters(0), render(true) {}
     int add_slice_task(slice_task_c *task);
     bool add_dependency(picture_task_c* dependency);
     void wait_for_dependencies();
     virtual void reset();
-    void add_waiter();
     void release_waiter();
+    void render_done();
 
 protected:
     picture_task_c* dependencies[MAX_NUM_DEPENDENCIES] = {};
@@ -47,15 +47,19 @@ private:
     friend class slice_task_c;
     friend class task_queue_c;
 
+    void add_waiter();
     void wait_for_free();
+    void wait_for_render();
     void wait_for_completion();
     bool slice_done();
 
     bool non_referenceable = false;
     std::atomic<int> done_slices;
     std::atomic<int> num_waiters;
+    std::atomic<bool> render;
     std::vector<slice_task_c*> slices_tasks;
     std::condition_variable cv_completed;
+    std::condition_variable cv_render;
     std::condition_variable cv_free;
     std::mutex mtx;
     task_queue_c* owner = nullptr;
@@ -76,11 +80,9 @@ private:
 
     queue_status_e status = QUEUE_SUSPENDED;
     std::atomic<int> ready_to_go_tasks;
-    std::atomic<int> done_tasks;
     std::atomic<int> head;
+    std::atomic<bool> render_flush;
     std::vector<picture_task_c*> task_queue;
-    std::condition_variable cv_done;
-    std::condition_variable cv_no_done;
     std::mutex mtx;
     int head_to_work = 0;
     int tail_decoded = 0;
@@ -90,5 +92,5 @@ private:
     static int make_head(int num_slices, int task_idx);
     bool wait_for_next_task();
     void next_task(int pic_idx);
-    void pic_done();
 };
+

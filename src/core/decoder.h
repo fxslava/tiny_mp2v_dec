@@ -85,19 +85,13 @@ class mp2v_decoder_c {
 public:
     mp2v_decoder_c()
 #ifndef MP2V_MT
-        : m_frames_pool(100), 
-        m_output_frames(100) 
+        : m_done_pics(100), m_free_pics(100)
 #endif
     {};
     ~mp2v_decoder_c();
     bool decoder_init(decoder_config_t* config, std::function<void(frame_c*)> renderer);
     bool decode(uint8_t* buffer, int len);
     void flush(mp2v_picture_c* cur_pic = nullptr);
-
-#ifndef MP2V_MT
-    void get_decoded_frame(frame_c*& frame) { m_output_frames.pop(frame); }
-    void release_frame(frame_c* frame) { m_frames_pool.push(frame); }
-#endif
 
 protected:
     bool decode_user_data();
@@ -108,18 +102,16 @@ protected:
     bitstream_reader_c m_bs;
     mp2v_picture_c* ref_frames[2] = { 0 };
     std::function<void(frame_c*)> render_func;
-
+    std::thread* render_thread = nullptr;
+    static void decoder_output_scheduler(mp2v_decoder_c* dec);
 #ifdef MP2V_MT
     static void threadpool_task_scheduler(mp2v_decoder_c *dec);
-    static void decoder_output_scheduler(mp2v_decoder_c* dec);
     std::thread* thread_pool[MAX_NUM_THREADS] = { 0 };
-    std::thread* render_thread = nullptr;
     task_queue_c* task_queue = nullptr;
 #else
-    void push_frame(frame_c* frame) { m_output_frames.push(frame); }
-    ThreadSafeQ<frame_c*> m_frames_pool;
-    ThreadSafeQ<frame_c*> m_output_frames;
-    std::deque<mp2v_picture_c*> m_pictures_pool;
+    ThreadSafeQ<mp2v_picture_c*> m_done_pics;
+    ThreadSafeQ<mp2v_picture_c*> m_free_pics;
+    std::vector<mp2v_picture_c*> m_pictures_pool;
 #endif
 
 public:
