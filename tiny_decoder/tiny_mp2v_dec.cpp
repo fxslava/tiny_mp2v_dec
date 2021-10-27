@@ -6,10 +6,6 @@
 #include "sample_args.h"
 #include "core/decoder.h"
 
-#if defined(_M_X64)
-#include <ittnotify.h>
-#endif
-
 std::vector<uint32_t, AlignmentAllocator<uint8_t, 32>> buffer_pool;
 
 void write_yuv(FILE* fp, frame_c* frame) {
@@ -60,17 +56,11 @@ int main(int argc, char* argv[])
         if (bitstream_file && fp) {
             load_bitstream(*bitstream_file);
             mp2v_decoder_c mp2v_decoder;
-            mp2v_decoder.decoder_init(&config, [fp](frame_c* frame) { /*write_yuv(fp, frame);*/ });
+            mp2v_decoder.decoder_init(&config, [fp](frame_c* frame) { write_yuv(fp, frame); });
 
             const auto start = std::chrono::system_clock::now();
 
-#if defined(_M_X64)
-            __itt_resume();
             mp2v_decoder.decode((uint8_t*)&buffer_pool[0], buffer_pool.size() * 4);
-            __itt_pause();
-#else
-            mp2v_decoder.decode((uint8_t*)&buffer_pool[0], buffer_pool.size() * 4);
-#endif
 
             const auto end = std::chrono::system_clock::now();
             auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);

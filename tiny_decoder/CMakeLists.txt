@@ -4,11 +4,6 @@ include_directories(../sample_common)
 include_directories(../src)
 include_directories(../src/api)
 
-if (WIN32)
-include_directories(../vtune/include)
-link_directories(../vtune/lib64)
-endif()
-
 file(
     GLOB SOURCES
         *.cpp
@@ -26,7 +21,6 @@ set(
 )
 
 if(WIN32)
-    list(APPEND DEPS_LIBRARIES libittnotify)
 else()
     list(APPEND DEPS_LIBRARIES pthread)
 endif()
