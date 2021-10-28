@@ -7,6 +7,26 @@
 #include "misc.hpp"
 #include "start_codes_search.hpp"
 
+uint8_t default_intra_quantiser_matrix[64] = {
+    8,  16, 19, 22, 26, 27, 29, 34,
+    16, 16, 22, 24, 27, 29, 34, 37,
+    19, 22, 26, 27, 29, 34, 34, 38,
+    22, 22, 26, 27, 29, 34, 37, 40,
+    22, 26, 27, 29, 32, 35, 40, 48,
+    26, 27, 29, 32, 35, 40, 48, 58,
+    26, 27, 29, 34, 38, 46, 56, 69,
+    27, 29, 35, 38, 46, 56, 69, 83 };
+
+uint8_t default_non_intra_quantiser_matrix[64] = {
+    16, 16, 16, 16, 16, 16, 16, 16,
+    16, 16, 16, 16, 16, 16, 16, 16,
+    16, 16, 16, 16, 16, 16, 16, 16,
+    16, 16, 16, 16, 16, 16, 16, 16,
+    16, 16, 16, 16, 16, 16, 16, 16,
+    16, 16, 16, 16, 16, 16, 16, 16,
+    16, 16, 16, 16, 16, 16, 16, 16,
+    16, 16, 16, 16, 16, 16, 16, 16 };
+
 struct spatial_temporal_weights_classes_t {
     uint8_t spatial_temporal_weight_fract[2]; // 0 - 0.0, 1 - 0.5, 2 - 1.0
     uint8_t spatial_temporal_weight_class;
@@ -144,8 +164,16 @@ void mp2v_picture_c::init() {
         pcext.q_scale_type,
         pcext.alternate_scan);
 
+    bool def_mat = m_quant_matrix_extension != nullptr;
     uint8_t tmp[4][64];
-    if (m_quant_matrix_extension) {
+    for (int i = 0; i < 64; i++) {
+        int j = g_scan[0][i];
+        tmp[0][i] = default_intra_quantiser_matrix[j];
+        tmp[1][i] = default_non_intra_quantiser_matrix[j];
+        tmp[2][i] = default_intra_quantiser_matrix[j];
+        tmp[3][i] = default_non_intra_quantiser_matrix[j];
+    }
+    if (def_mat) {
         for (int i = 0; i < 64; i++) {
             int j = g_scan[0][i];
             if (m_quant_matrix_extension->load_intra_quantiser_matrix)            tmp[0][i] = m_quant_matrix_extension->intra_quantiser_matrix[j];
@@ -153,13 +181,13 @@ void mp2v_picture_c::init() {
             if (m_quant_matrix_extension->load_chroma_intra_quantiser_matrix)     tmp[2][i] = m_quant_matrix_extension->chroma_intra_quantiser_matrix[j];
             if (m_quant_matrix_extension->load_chroma_non_intra_quantiser_matrix) tmp[3][i] = m_quant_matrix_extension->chroma_non_intra_quantiser_matrix[j];
         }
-        for (int i = 0; i < 64; i++) {
-            int j = g_shuffle[pcext.alternate_scan][i];
-            if (m_quant_matrix_extension->load_intra_quantiser_matrix)            quantiser_matrices[0][i] = tmp[0][j];
-            if (m_quant_matrix_extension->load_non_intra_quantiser_matrix)        quantiser_matrices[1][i] = tmp[1][j];
-            if (m_quant_matrix_extension->load_chroma_intra_quantiser_matrix)     quantiser_matrices[2][i] = tmp[2][j];
-            if (m_quant_matrix_extension->load_chroma_non_intra_quantiser_matrix) quantiser_matrices[3][i] = tmp[3][j];
-        }
+    }
+    for (int i = 0; i < 64; i++) {
+        int j = g_shuffle[pcext.alternate_scan][i];
+        if (m_quant_matrix_extension->load_intra_quantiser_matrix)            quantiser_matrices[0][i] = tmp[0][j];
+        if (m_quant_matrix_extension->load_non_intra_quantiser_matrix)        quantiser_matrices[1][i] = tmp[1][j];
+        if (m_quant_matrix_extension->load_chroma_intra_quantiser_matrix)     quantiser_matrices[2][i] = tmp[2][j];
+        if (m_quant_matrix_extension->load_chroma_non_intra_quantiser_matrix) quantiser_matrices[3][i] = tmp[3][j];
     }
 }
 
