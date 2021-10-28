@@ -30,7 +30,7 @@ if(WIN32)
 elseif(UNIX)
     set(
         CMAKE_CXX_FLAGS
-            "${CMAKE_CXX_FLAGS} -Ofast -g0 -Wall -march=armv8-a"
+            "${CMAKE_CXX_FLAGS} -Ofast -g0 -Wall"
     )
 endif()
 
