@@ -11,8 +11,6 @@ using namespace std::chrono;
 #include "test_common.h"
 #include "threads_test_common.hpp"
 
-#include <windows.h>
-
 constexpr int THREAD_POOL_SIZE = 8;
 constexpr int TASK_POOL_SIZE = 8;
 
