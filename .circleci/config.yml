@@ -15,10 +15,10 @@ jobs:
             cd ./build
             make
       - run:
-          name: cavlc-test
+          name: check
           command: |
-            cd ../bin
-            ./cavlc_test
+            cd ..
+            ls -R
 
   build-arm64:
     machine:
