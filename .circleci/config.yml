@@ -54,7 +54,7 @@ jobs:
           command: |
             cd build/bin
             ./cavlc_test --gtest_output="xml:cavlc_test_report.xml"
-            ./simd_test --gtest_filter=*mc* --gtest_output="xml:simd_test_report.xml"
+            ./simd_test --gtest_filter=*mc*validation* --gtest_output="xml:simd_test_report.xml"
       - store_test_results:
           path: build
 
@@ -68,7 +68,7 @@ jobs:
           command: |
             cd build/bin
             ./cavlc_test --gtest_output="xml:report.xml"
-            ./simd_test --gtest_filter=*mc*:*idct* --gtest_output="xml:simd_test_report.xml"
+            ./simd_test --gtest_filter=*mc*validation*:*idct* --gtest_output="xml:simd_test_report.xml"
       - store_test_results:
           path: build
 
