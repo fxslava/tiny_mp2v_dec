@@ -2,30 +2,18 @@
 # See: https://circleci.com/docs/2.0/configuration-reference
 version: 2.1
 
-jobs:
-  build-x86:
+executors:
+  x86-executor:
     docker:
       - image: "cimg/base:stable-20.04"
-    steps:
-      - checkout
-      - run:
-          name: Build
-          command: |
-            cmake -DCMAKE_BUILD_TYPE=Release -S ./ -B ./build
-            cd ./build
-            make
-      - store_artifacts:
-          path: ./build/bin
-      - run:
-          name: cavlc-test
-          command: |
-            cd ./build/bin
-            ./cavlc_test
-
-  build-arm64:
+  aarch64-executor:
     machine:
       image: ubuntu-2004:202101-01
     resource_class: arm.medium
+
+jobs:
+  build-x86:
+    executor: x86-executor
     steps:
       - checkout
       - run:
@@ -36,14 +24,60 @@ jobs:
             make
       - store_artifacts:
           path: ./build/bin
+      - persist_to_workspace:
+          root: .
+          paths: build
+
+  build-aarch64:
+    executor: aarch64-executor
+    steps:
+      - checkout
       - run:
-          name: cavlc-test
+          name: Build
           command: |
-            cd ./build/bin
-            ./cavlc_test
+            cmake -DCMAKE_BUILD_TYPE=Release -S ./ -B ./build
+            cd ./build
+            make
+      - store_artifacts:
+          path: ./build/bin
+      - persist_to_workspace:
+          root: .
+          paths: build
+
+  test-x86:
+    executor: x86-executor
+    steps:
+      - attach_workspace:
+          at: .
+      - run:
+          name: Execute Tests
+          command: |
+            cd build
+            ./cavlc_test --gtest_output=XML
+      - store_test_results:
+          path: build
+
+  test-aarch64:
+    executor: aarch64-executor
+    steps:
+      - attach_workspace:
+          at: .
+      - run:
+          name: Execute Tests
+          command: |
+            cd build
+            ./cavlc_test --gtest_output=XML
+      - store_test_results:
+          path: build
 
 workflows:
-  build:
+  build-and-test:
     jobs:
+      - build-aarch64
       - build-x86
-      - build-arm64
+      - test-x86:
+          requires:
+            - build-x86
+      - test-aarch64:
+          requires:
+            - build-aarch64
