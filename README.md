@@ -1,4 +1,4 @@
-[![fxslava](https://circleci.com/gh/fxslava/tiny_mp2v_dec.svg?style=svg)](https://app.circleci.com/pipelines/github/fxslava/tiny_mp2v_dec/22/workflows/4040d4d7-8b44-46f0-aae0-6fd502aaaa08)
+[![fxslava](https://circleci.com/gh/fxslava/tiny_mp2v_dec.svg?style=svg)](https://app.circleci.com/pipelines/github/fxslava/tiny_mp2v_dec/24/workflows/d43ffe52-1b8f-4ad0-9588-dde18afc3299)
 
 # tiny_mp2v_dec
 
