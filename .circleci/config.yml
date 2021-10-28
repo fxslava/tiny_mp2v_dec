@@ -52,7 +52,7 @@ jobs:
       - run:
           name: Execute Tests
           command: |
-            cd build
+            cd build/bin
             ./cavlc_test --gtest_output=XML
       - store_test_results:
           path: build
@@ -65,7 +65,7 @@ jobs:
       - run:
           name: Execute Tests
           command: |
-            cd build
+            cd build/bin
             ./cavlc_test --gtest_output=XML
       - store_test_results:
           path: build
