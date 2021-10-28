@@ -14,10 +14,18 @@ jobs:
             cmake -DCMAKE_BUILD_TYPE=Release -S ./ -B ./build
             cd ./build
             make
+      - store_artifacts:
+          path: ./project/build/bin/cavlc_test.exe
+      - store_artifacts:
+          path: ./project/build/bin/simd_test.exe
+      - store_artifacts:
+          path: ./project/build/bin/threads_test.exe
+      - store_artifacts:
+          path: ./project/build/bin/tiny_mp2v_dec_sample.exe
       - run:
           name: cavlc-test
           command: |
-            cd ./project/build/bin
+            cd ./bin
             ./cavlc_test
 
   build-arm64:
@@ -35,7 +43,7 @@ jobs:
       - run:
           name: cavlc-test
           command: |
-            cd ./project/build/bin
+            cd ./bin
             ./cavlc_test
 
 workflows:
