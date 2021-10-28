@@ -14,6 +14,11 @@ jobs:
             cmake -DCMAKE_BUILD_TYPE=Release -S ./ -B ./build
             cd ./build
             make
+      - run:
+          name: cavlc-test
+          command: |
+            cd ../bin
+            ./cavlc_test
 
   build-arm64:
     machine:
@@ -27,6 +32,11 @@ jobs:
             cmake -DCMAKE_BUILD_TYPE=Release -S ./ -B ./build
             cd ./build
             make
+      - run:
+          name: cavlc-test
+          command: |
+            cd ../bin
+            ./cavlc_test
 
 workflows:
   build:
