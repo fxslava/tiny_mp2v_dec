@@ -9,7 +9,7 @@ executors:
   aarch64-executor:
     machine:
       image: ubuntu-2004:202101-01
-    resource_class: arm.medium
+    resource_class: arm.small
 
 jobs:
   build-x86:
