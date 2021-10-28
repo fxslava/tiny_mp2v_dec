@@ -3,7 +3,7 @@
 version: 2.1
 
 jobs:
-  build:
+  build-x86:
     docker:
       - image: "cimg/base:stable-20.04"
     steps:
@@ -17,6 +17,22 @@ jobs:
       - run:
           name: Install CMAKE
           command: 'sudo apt-get update && sudo apt-get install -y cmake'
+      - run:
+          name: Build
+          command: |
+            cmake -DCMAKE_BUILD_TYPE=Release -S ./ -B ./build
+            cd ./build
+            make
+      - run:
+          name: Test
+          command: |
+            cd ../bin/Release
+            ./cavlc_test
+  build-arm:
+    machine:
+      image: ubuntu-2004:202101-01
+    resource_class: arm.medium
+    steps:
       - run:
           name: Build
           command: |
