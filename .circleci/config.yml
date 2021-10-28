@@ -23,3 +23,8 @@ jobs:
             cmake -DCMAKE_BUILD_TYPE=Release -S ./ -B ./build
             cd ./build
             make
+      - run:
+          name: Test
+          command: |
+            cd ./bin/Release
+            ./cavlc_test
