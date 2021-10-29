@@ -4,6 +4,21 @@
 The idea of the project is to create a super light mpeg2 cross-platform decoder for the possibility of its use in ARM microcontrollers with a rather low performance and a small amount of memory.
 The goal of the project is to achieve the highest performance from a software decoder on the Raspberry Pi 4 platform, ultra low latency, support for spatial and temporal scalability features.
 
+# How to build
+1. Clone repository:
+```console
+git clone https://github.com/fxslava/tiny_mp2v_dec.git | cd ./tiny_mp2v_dec
+```
+2. Generate project with cmake:
+```console
+cmake -S ./ -B ./build-x64 | cd ./build-x64
+```
+3. Make it:
+```console
+make .
+```
+
+
 # Supported platforms
 - [X] Linux x64/aarch64
 - [X] Windows x64/aarch64
