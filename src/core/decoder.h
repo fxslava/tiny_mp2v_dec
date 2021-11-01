@@ -34,6 +34,8 @@ struct decoder_config_t {
 class buffer_handle_t {
 public:
     buffer_handle_t() : waiters(0) {};
+    void set_size(size_t sz) { size = sz; }
+    size_t get_size() { return size; }
     void release() {
         std::unique_lock<std::mutex> lck(mtx);
         auto num_waiters = --waiters;
@@ -52,6 +54,7 @@ public:
     }
 
 private:
+    size_t size = 0;
     std::atomic<int> waiters;
     std::condition_variable cv_free;
     std::mutex mtx;
@@ -88,8 +91,14 @@ public:
     bool decode_slice(bitstream_reader_c bs);
     frame_c* get_frame() { return m_frame; }
 
-    void reset() { picture_task_c::reset(); subscribed_buffers.clear(); }
-    void subscribe_buffer(buffer_handle_t* handle) { subscribed_buffers.push_back(handle); handle->add_waiter(); }
+    void reset() {
+        picture_task_c::reset(); 
+        subscribed_buffers.clear(); 
+    }
+    void subscribe_buffer(buffer_handle_t* handle) { 
+        subscribed_buffers.push_back(handle); 
+        handle->add_waiter(); 
+    }
 
 private:
     void on_completed();

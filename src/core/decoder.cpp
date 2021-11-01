@@ -338,8 +338,10 @@ buffer_handle_t* mp2v_decoder_c::decode(uint8_t* buffer, int len, int& consumed)
         prev_start_code = ptr;
         });
 
-    if (last_start_code)
+    if (last_start_code) {
         consumed = (last_start_code - buffer);
+        buf_handle->set_size(consumed);
+    }
     else {
         consumed = 0;
         registered_buffers.pop_back();
@@ -444,6 +446,4 @@ mp2v_decoder_c::~mp2v_decoder_c() {
         delete pic;
     }
 #endif
-    for (auto* buf_handle : registered_buffers)
-        delete buf_handle;
 }
