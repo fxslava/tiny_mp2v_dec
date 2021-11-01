@@ -40,6 +40,7 @@ public:
     void render_done();
 
 protected:
+    virtual void on_completed() {};
     picture_task_c* dependencies[MAX_NUM_DEPENDENCIES] = {};
     int num_dependencies = 0;
 
