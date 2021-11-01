@@ -7,7 +7,9 @@
 #include "core/decoder.h"
 
 constexpr int CHUNK_SIZE = 65536;
-constexpr int MAX_BUFFER_SIZE = CHUNK_SIZE * 512;
+
+#define ALIGNUP_SIZE(size, align) ((size + align - 1) & ~(align - 1))
+#define ALIGNUP_BITSTREAM(size) ALIGNUP_SIZE(size, 16)
 
 void write_yuv(FILE* fp, frame_c* frame) {
     for (int i = 0; i < 3; i++) {
@@ -19,24 +21,19 @@ void write_yuv(FILE* fp, frame_c* frame) {
 
 void decode_file(std::string filename, mp2v_decoder_c& dec) {
     FILE* fp = fopen(filename.c_str(), "rb");
-    uint8_t* buffer = new uint8_t[MAX_BUFFER_SIZE];
-    uint8_t* buf_write = &buffer[0];
-    uint8_t* buf_read  = &buffer[0];
+    uint8_t* buffer = new uint8_t[ALIGNUP_BITSTREAM(CHUNK_SIZE + 4)];
     int consumed_bytes = 0;
     int rest_bytes = 0;
     while (1) {
-        size_t ret_code = fread(buf_write, 1, CHUNK_SIZE, fp);
-        buf_write += ret_code;
+        size_t ret_code = fread(buffer, 1, CHUNK_SIZE, fp);
 
         bool end_of_file = feof(fp);
         if (end_of_file) {
-            *((uint32_t*)buf_write) = 0xb7010000; // end of sequence code
-            ret_code += 4;
-            ret_code = (ret_code + 15) & ~15;
+            *((uint32_t*)(buffer + ret_code)) = 0xb7010000; // end of sequence code
+            ret_code = ALIGNUP_BITSTREAM(ret_code + 4);
         }
 
-        dec.decode(buf_read, ret_code);
-        buf_read += ret_code;
+        dec.decode(buffer, ret_code);
         if (end_of_file) break;
     }
     dec.flush();

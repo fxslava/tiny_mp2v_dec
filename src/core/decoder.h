@@ -13,7 +13,7 @@
 #include "mb_decoder.h"
 #include "threads.h"
 
-//#define MP2V_MT
+#define MP2V_MT
 
 constexpr int MAX_NUM_THREADS = 256;
 constexpr int MAX_B_FRAMES = 8;
