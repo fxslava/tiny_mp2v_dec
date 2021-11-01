@@ -191,11 +191,6 @@ void mp2v_picture_c::init() {
     }
 }
 
-void mp2v_picture_c::on_completed() {
-    for (auto*& subscriber : subscribed_buffers)
-        subscriber->release();
-}
-
 bool mp2v_decoder_c::decode_user_data() {
     while (m_bs.get_next_bits(vlc_start_code.len) != vlc_start_code.value) {
         uint8_t data = m_bs.read_next_bits(8);
@@ -282,12 +277,9 @@ void mp2v_decoder_c::out_pic(mp2v_picture_c* cur_pic) {
 #endif
 }
 
-buffer_handle_t* mp2v_decoder_c::decode(uint8_t* buffer, int len, int& consumed) {
+void mp2v_decoder_c::decode(uint8_t* buffer, int len, int& consumed) {
 
-    bool new_buffer = false;
     uint8_t* prev_start_code = nullptr, *last_start_code = nullptr;
-    buffer_handle_t* buf_handle = new buffer_handle_t();
-    registered_buffers.push_back(buf_handle);
     m_bs.set_bitstream_buffer(buffer);
 
     scan_start_codes(buffer, buffer + len, [&](uint8_t* ptr) {
@@ -304,7 +296,6 @@ buffer_handle_t* mp2v_decoder_c::decode(uint8_t* buffer, int len, int& consumed)
             case group_start_code:     parse_group_of_pictures_header(&m_bs, *(m_group_of_pictures_header = new group_of_pictures_header_t)); break;
             case picture_start_code:
                 new_picture = true;
-                new_buffer = true;
                 if (cur_pic) out_pic(cur_pic);
                 cur_pic = new_pic();
                 parse_picture_header(&m_bs, cur_pic->m_picture_header);
@@ -321,7 +312,6 @@ buffer_handle_t* mp2v_decoder_c::decode(uint8_t* buffer, int len, int& consumed)
             case sequence_end_code: break;
             default:
                 if ((start_code >= slice_start_code_min) && (start_code <= slice_start_code_max)) {
-                    if (new_buffer) cur_pic->subscribe_buffer(buf_handle);
                     if (new_picture) cur_pic->init();
 #ifdef MP2V_MT
                     auto tsk = new mp2v_slice_task_c();
@@ -331,7 +321,6 @@ buffer_handle_t* mp2v_decoder_c::decode(uint8_t* buffer, int len, int& consumed)
                     cur_pic->decode_slice(m_bs);
 #endif
                     new_picture = false;
-                    new_buffer = false;
                 }
             }
         }
@@ -340,13 +329,8 @@ buffer_handle_t* mp2v_decoder_c::decode(uint8_t* buffer, int len, int& consumed)
 
     if (last_start_code)
         consumed = (last_start_code - buffer);
-    else {
+    else
         consumed = 0;
-        registered_buffers.pop_back();
-        delete buf_handle;
-        buf_handle = nullptr;
-    }
-    return buf_handle;
 }
 
 void mp2v_slice_task_c::decode() {
@@ -444,6 +428,4 @@ mp2v_decoder_c::~mp2v_decoder_c() {
         delete pic;
     }
 #endif
-    for (auto* buf_handle : registered_buffers)
-        delete buf_handle;
 }

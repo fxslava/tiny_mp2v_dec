@@ -31,32 +31,6 @@ struct decoder_config_t {
     bool reordering;
 };
 
-class buffer_handle_t {
-public:
-    buffer_handle_t() : waiters(0) {};
-    void release() {
-        std::unique_lock<std::mutex> lck(mtx);
-        auto num_waiters = --waiters;
-        bool released = (num_waiters == 0);
-        lck.unlock();
-        if (released) cv_free.notify_all();
-    }
-
-    void wait_for_release() {
-        std::unique_lock<std::mutex> lck(mtx);
-        cv_free.wait(lck, [this] { return waiters.load() == 0; });
-    }
-
-    void add_waiter() {
-        waiters++;
-    }
-
-private:
-    std::atomic<int> waiters;
-    std::condition_variable cv_free;
-    std::mutex mtx;
-};
-
 class frame_c {
     friend class mp2v_picture_c;
 public:
@@ -88,12 +62,7 @@ public:
     bool decode_slice(bitstream_reader_c bs);
     frame_c* get_frame() { return m_frame; }
 
-    void reset() { picture_task_c::reset(); subscribed_buffers.clear(); }
-    void subscribe_buffer(buffer_handle_t* handle) { subscribed_buffers.push_back(handle); handle->add_waiter(); }
-
 private:
-    void on_completed();
-    std::vector<buffer_handle_t*> subscribed_buffers;
     mp2v_decoder_c* m_dec;
     uint8_t quantiser_matrices[4][64];
     parse_macroblock_func_t m_parse_macroblock_func = nullptr;
@@ -127,7 +96,7 @@ public:
     };
     ~mp2v_decoder_c();
     bool decoder_init(const decoder_config_t& config, std::function<void(frame_c*)> renderer);
-    buffer_handle_t* decode(uint8_t* buffer, int len, int& consumed);
+    void decode(uint8_t* buffer, int len, int& consumed);
     void flush();
 
 protected:
@@ -138,7 +107,6 @@ protected:
     bool reordering = true;
     bitstream_reader_c m_bs;
     mp2v_picture_c* ref_frames[2] = { 0 };
-    std::vector<buffer_handle_t*> registered_buffers;
     std::function<void(frame_c*)> render_func;
     std::thread* render_thread = nullptr;
     static void decoder_output_scheduler(mp2v_decoder_c* dec);
