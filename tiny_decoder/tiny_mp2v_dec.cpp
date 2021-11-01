@@ -20,26 +20,23 @@ void write_yuv(FILE* fp, frame_c* frame) {
 void decode_file(std::string filename, mp2v_decoder_c& dec) {
     FILE* fp = fopen(filename.c_str(), "rb");
     uint8_t* buffer = new uint8_t[MAX_BUFFER_SIZE];
-    uint8_t* write_buf = &buffer[0];
-    uint8_t* read_buf = &buffer[0];
+    uint8_t* buf_write = &buffer[0];
+    uint8_t* buf_read  = &buffer[0];
     int consumed_bytes = 0;
     int rest_bytes = 0;
     while (1) {
-        size_t ret_code = fread(write_buf, 1, CHUNK_SIZE, fp);
-        write_buf += ret_code;
+        size_t ret_code = fread(buf_write, 1, CHUNK_SIZE, fp);
+        buf_write += ret_code;
 
         bool end_of_file = feof(fp);
         if (end_of_file) {
-            *((uint32_t*)write_buf) = 0xb7010000; // end of sequence code
+            *((uint32_t*)buf_write) = 0xb7010000; // end of sequence code
             ret_code += 4;
             ret_code = (ret_code + 15) & ~15;
         }
 
-        size_t len = rest_bytes + ret_code;
-        dec.decode(read_buf, len, consumed_bytes);
-        read_buf += consumed_bytes;
-        rest_bytes = (len - consumed_bytes);
-
+        dec.decode(buf_read, ret_code);
+        buf_read += ret_code;
         if (end_of_file) break;
     }
     dec.flush();
@@ -58,7 +55,7 @@ int main(int argc, char* argv[])
     if (output_file) {
         FILE* fp = fopen(output_file->c_str(), "wb");
         if (bitstream_file && fp) {
-            mp2v_decoder_c mp2v_decoder({ 1920, 1088, 2, 10, 8, true }, [fp](frame_c* frame) { write_yuv(fp, frame); });
+            mp2v_decoder_c mp2v_decoder({ 1920, 1088, 2, 10, 8, 1024 * 1024, true }, [fp](frame_c* frame) { write_yuv(fp, frame); });
 
             const auto start = std::chrono::system_clock::now();
 

@@ -18,6 +18,7 @@
 constexpr int MAX_NUM_THREADS = 256;
 constexpr int MAX_B_FRAMES = 8;
 constexpr int CACHE_LINE = 64;
+constexpr int DEFAULT_BITSTREAM_BUFFER_SIZE = 1024*1024;
 
 class mp2v_picture_c;
 class mp2v_decoder_c;
@@ -28,6 +29,7 @@ struct decoder_config_t {
     int chroma_format;
     int pictures_pool_size;
     int num_threads;
+    int bitstream_chunk_size;
     bool reordering;
 };
 
@@ -55,14 +57,24 @@ public:
 };
 
 class mp2v_picture_c : public picture_task_c {
+    friend class mp2v_decoder_c;
 public:
-    mp2v_picture_c(mp2v_decoder_c* decoder, frame_c* frame) : m_dec(decoder), m_frame(frame) {};
+    mp2v_picture_c(mp2v_decoder_c* decoder, frame_c* frame, int bitstream_buffer_size = DEFAULT_BITSTREAM_BUFFER_SIZE) : 
+        m_dec(decoder), m_frame(frame), bitstream_buffer(bitstream_buffer_size) {
+        bitstream_ptr = &bitstream_buffer[0];
+    };
     void init();
     void attach(frame_c* frame) { m_frame = frame; }
     bool decode_slice(bitstream_reader_c bs);
     frame_c* get_frame() { return m_frame; }
+    void reset() {
+        picture_task_c::reset();
+        bitstream_ptr = &bitstream_buffer[0];
+    }
 
 private:
+    uint8_t* bitstream_ptr = nullptr;
+    std::vector<uint8_t> bitstream_buffer;
     mp2v_decoder_c* m_dec;
     uint8_t quantiser_matrices[4][64];
     parse_macroblock_func_t m_parse_macroblock_func = nullptr;
@@ -96,7 +108,7 @@ public:
     };
     ~mp2v_decoder_c();
     bool decoder_init(const decoder_config_t& config, std::function<void(frame_c*)> renderer);
-    void decode(uint8_t* buffer, int len, int& consumed);
+    void decode(uint8_t* buffer, int len);
     void flush();
 
 protected:
@@ -120,6 +132,8 @@ protected:
     std::vector<mp2v_picture_c*> m_pictures_pool;
 #endif
     // Decoder state variables
+    uint8_t* prev_start_code = nullptr;
+    uint8_t* last_start_code = nullptr;
     mp2v_picture_c* cur_pic = nullptr;
     bool new_picture = false;
 

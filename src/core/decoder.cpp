@@ -277,19 +277,25 @@ void mp2v_decoder_c::out_pic(mp2v_picture_c* cur_pic) {
 #endif
 }
 
-void mp2v_decoder_c::decode(uint8_t* buffer, int len, int& consumed) {
+void mp2v_decoder_c::decode(uint8_t* buffer, int len) {
 
-    uint8_t* prev_start_code = nullptr, *last_start_code = nullptr;
     m_bs.set_bitstream_buffer(buffer);
 
     scan_start_codes(buffer, buffer + len, [&](uint8_t* ptr) {
         if (prev_start_code) {
             last_start_code = ptr;
+            uint8_t* p = prev_start_code;
+            if (cur_pic) {
+                p = cur_pic->bitstream_ptr;
+                size_t sz = last_start_code - prev_start_code;
+                memcpy(p, prev_start_code, sz);
+                cur_pic->bitstream_ptr += sz;
+            }
             BITSTREAM((&m_bs));
             bit_idx = 32;
-            bit_ptr = (uint32_t*)(prev_start_code + 4);
-            bit_buf = (uint64_t)bswap_32(*((uint32_t*)prev_start_code));
-            uint8_t start_code = *(prev_start_code + 3);
+            bit_ptr = (uint32_t*)(p + 4);
+            bit_buf = (uint64_t)bswap_32(*((uint32_t*)p));
+            uint8_t start_code = *(p + 3);
             switch (start_code) {
             case sequence_header_code: parse_sequence_header(&m_bs, m_sequence_header); break;
             case extension_start_code: decode_extension_data(cur_pic);                  break;
@@ -327,10 +333,11 @@ void mp2v_decoder_c::decode(uint8_t* buffer, int len, int& consumed) {
         prev_start_code = ptr;
         });
 
-    if (last_start_code)
-        consumed = (last_start_code - buffer);
-    else
-        consumed = 0;
+    if (cur_pic) {
+        size_t sz = buffer + len - last_start_code;
+        memcpy(cur_pic->bitstream_ptr, prev_start_code, sz);
+        cur_pic->bitstream_ptr += sz;
+    }
 }
 
 void mp2v_slice_task_c::decode() {
@@ -393,7 +400,7 @@ bool mp2v_decoder_c::decoder_init(const decoder_config_t &config, std::function<
 
 #ifdef MP2V_MT
     task_queue = new task_queue_c(num_pics, [&]() -> picture_task_c* {
-        return new mp2v_picture_c(this, new frame_c(width, height, chroma_format));
+        return new mp2v_picture_c(this, new frame_c(width, height, chroma_format), config.bitstream_chunk_size);
         });
     for (int i = 0; i < config.num_threads; i++)
         thread_pool[i] = new std::thread(threadpool_task_scheduler, this);
