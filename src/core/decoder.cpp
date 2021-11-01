@@ -46,6 +46,7 @@ frame_c::frame_c(int width, int height, int chroma_format) {
     m_width [0] = width;
     m_height[0] = height;
 
+    m_chroma_format = chroma_format;
     switch (chroma_format) {
     case chroma_format_420:
         m_stride[1] = ((m_stride[0] >> 1) + CACHE_LINE - 1) & ~(CACHE_LINE - 1);
@@ -74,6 +75,13 @@ frame_c::frame_c(int width, int height, int chroma_format) {
     for (int i = 0; i < 3; i++)
         m_planes[i] = (uint8_t*)aligned_alloc(32, m_height[i] * m_stride[i]);
 #endif
+}
+
+void frame_c::set_display_size(int display_width, int display_height) {
+    m_display_width [0] = display_width;
+    m_display_height[0] = display_height;
+    m_display_width [1] = m_display_width [2] = (m_chroma_format != chroma_format_444) ? display_width >> 1 : display_width;
+    m_display_height[1] = m_display_height[2] = (m_chroma_format != chroma_format_420) ? display_height : display_height >> 1;
 }
 
 frame_c::~frame_c() {
@@ -189,6 +197,9 @@ void mp2v_picture_c::init() {
         if (m_quant_matrix_extension->load_chroma_intra_quantiser_matrix)     quantiser_matrices[2][i] = tmp[2][j];
         if (m_quant_matrix_extension->load_chroma_non_intra_quantiser_matrix) quantiser_matrices[3][i] = tmp[3][j];
     }
+
+    auto sh = m_dec->m_sequence_header;
+    m_frame->set_display_size(sh.horizontal_size_value, sh.vertical_size_value);
 }
 
 bool mp2v_decoder_c::decode_user_data() {

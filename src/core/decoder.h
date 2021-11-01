@@ -41,11 +41,15 @@ public:
 
     uint8_t* get_planes (int plane_idx) { return m_planes[plane_idx]; }
     int      get_strides(int plane_idx) { return m_stride[plane_idx]; }
-    int      get_width  (int plane_idx) { return m_width [plane_idx]; }
-    int      get_height (int plane_idx) { return m_height[plane_idx]; }
+    int      get_display_width  (int plane_idx) { return m_display_width [plane_idx]; }
+    int      get_display_height (int plane_idx) { return m_display_height[plane_idx]; }
+    void     set_display_size   (int display_width, int display_height);
 private:
+    int m_chroma_format = chroma_format_420;
     uint32_t m_width [3] = { 0 };
     uint32_t m_height[3] = { 0 };
+    uint32_t m_display_width [3] = { 0 };
+    uint32_t m_display_height[3] = { 0 };
     uint32_t m_stride[3] = { 0 };
     uint8_t* m_planes[3] = { 0 };
 };

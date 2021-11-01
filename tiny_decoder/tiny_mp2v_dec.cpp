@@ -12,8 +12,8 @@ constexpr int MAX_BUFFER_SIZE = CHUNK_SIZE * 512;
 void write_yuv(FILE* fp, frame_c* frame) {
     for (int i = 0; i < 3; i++) {
         uint8_t* plane = frame->get_planes(i);
-        for (int y = 0; y < frame->get_height(i); y++, plane += frame->get_strides(i))
-            fwrite(plane, 1, frame->get_width(i), fp);
+        for (int y = 0; y < frame->get_display_height(i); y++, plane += frame->get_strides(i))
+            fwrite(plane, 1, frame->get_display_width(i), fp);
     }
 }
 
