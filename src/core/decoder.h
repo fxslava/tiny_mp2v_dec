@@ -13,7 +13,7 @@
 #include "mb_decoder.h"
 #include "threads.h"
 
-#define MP2V_MT
+//#define MP2V_MT
 
 constexpr int MAX_NUM_THREADS = 256;
 constexpr int MAX_B_FRAMES = 8;
@@ -65,7 +65,7 @@ class mp2v_picture_c : public picture_task_c {
 public:
     mp2v_picture_c(mp2v_decoder_c* decoder, frame_c* frame, int bitstream_buffer_size = DEFAULT_BITSTREAM_BUFFER_SIZE) : 
         m_dec(decoder), m_frame(frame), bitstream_buffer(bitstream_buffer_size) {
-        bitstream_ptr = &bitstream_buffer[0];
+        cur_bistream_pos = &bitstream_buffer[0];
     };
     void init();
     void attach(frame_c* frame) { m_frame = frame; }
@@ -73,11 +73,13 @@ public:
     frame_c* get_frame() { return m_frame; }
     void reset() {
         picture_task_c::reset();
-        bitstream_ptr = &bitstream_buffer[0];
+        cur_bistream_pos = &bitstream_buffer[0];
+        last_start_code = nullptr;
     }
 
 private:
-    uint8_t* bitstream_ptr = nullptr;
+    uint8_t* last_start_code = nullptr;
+    uint8_t* cur_bistream_pos = nullptr;
     std::vector<uint8_t> bitstream_buffer;
     mp2v_decoder_c* m_dec;
     uint8_t quantiser_matrices[4][64];
@@ -113,6 +115,7 @@ public:
     ~mp2v_decoder_c();
     bool decoder_init(const decoder_config_t& config, std::function<void(frame_c*)> renderer);
     void decode(uint8_t* buffer, int len);
+    void decode_unit(uint8_t* start_code_ptr);
     void flush();
 
 protected:

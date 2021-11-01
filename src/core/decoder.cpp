@@ -289,65 +289,87 @@ void mp2v_decoder_c::out_pic(mp2v_picture_c* cur_pic) {
 }
 
 void mp2v_decoder_c::decode(uint8_t* buffer, int len) {
-
-    m_bs.set_bitstream_buffer(buffer);
+    bool new_buffer = true;
 
     scan_start_codes(buffer, buffer + len, [&](uint8_t* ptr) {
         if (prev_start_code) {
             last_start_code = ptr;
-            uint8_t* p = prev_start_code;
+            uint8_t* p = nullptr;
             if (cur_pic) {
-                p = cur_pic->bitstream_ptr;
-                size_t sz = last_start_code - prev_start_code;
-                memcpy(p, prev_start_code, sz);
-                cur_pic->bitstream_ptr += sz;
+                p = cur_pic->cur_bistream_pos;
+                size_t sz = new_buffer ? last_start_code - buffer : last_start_code - prev_start_code;
+                memcpy(p, new_buffer ? buffer : prev_start_code, sz);
+                cur_pic->cur_bistream_pos += sz;
+                cur_pic->cur_bistream_pos[0] = 0;
+                cur_pic->cur_bistream_pos[1] = 0;
+                cur_pic->cur_bistream_pos[2] = 1;
+                if (!(cur_pic->last_start_code != nullptr && new_buffer)) cur_pic->last_start_code = p;
+                decode_unit(cur_pic->last_start_code);
             }
-            BITSTREAM((&m_bs));
-            bit_idx = 32;
-            bit_ptr = (uint32_t*)(p + 4);
-            bit_buf = (uint64_t)bswap_32(*((uint32_t*)p));
-            uint8_t start_code = *(p + 3);
-            switch (start_code) {
-            case sequence_header_code: parse_sequence_header(&m_bs, m_sequence_header); break;
-            case extension_start_code: decode_extension_data(cur_pic);                  break;
-            case group_start_code:     parse_group_of_pictures_header(&m_bs, *(m_group_of_pictures_header = new group_of_pictures_header_t)); break;
-            case picture_start_code:
-                new_picture = true;
-                if (cur_pic) out_pic(cur_pic);
-                cur_pic = new_pic();
-                parse_picture_header(&m_bs, cur_pic->m_picture_header);
-                if (cur_pic->m_picture_header.picture_coding_type == picture_coding_type_pred || cur_pic->m_picture_header.picture_coding_type == picture_coding_type_intra) {
-                    cur_pic->add_dependency(ref_frames[1]);
-                    ref_frames[0] = ref_frames[1];
-                    ref_frames[1] = cur_pic;
-                }
-                else
-                    for (auto* pic : ref_frames) cur_pic->add_dependency(pic);
-                break;
-            case user_data_start_code: decode_user_data(); break;
-            case sequence_error_code:
-            case sequence_end_code: break;
-            default:
-                if ((start_code >= slice_start_code_min) && (start_code <= slice_start_code_max)) {
-                    if (new_picture) cur_pic->init();
-#ifdef MP2V_MT
-                    auto tsk = new mp2v_slice_task_c();
-                    tsk->bs = m_bs;
-                    cur_pic->add_slice_task(tsk);
-#else
-                    cur_pic->decode_slice(m_bs);
-#endif
-                    new_picture = false;
-                }
+            else
+                decode_unit(prev_start_code);
+
+            if (new_buffer) {
+                if (p[-1] == 0 && p[0] == 0 && p[1] == 1)
+                    decode_unit(&p[-1]);
+                if (p[-2] == 0 && p[-1] == 0 && p[0] == 1)
+                    decode_unit(&p[-2]);
             }
         }
         prev_start_code = ptr;
+        new_buffer = false;
         });
 
     if (cur_pic) {
         size_t sz = buffer + len - last_start_code;
-        memcpy(cur_pic->bitstream_ptr, prev_start_code, sz);
-        cur_pic->bitstream_ptr += sz;
+        memcpy(cur_pic->cur_bistream_pos, prev_start_code, sz);
+        cur_pic->last_start_code = cur_pic->cur_bistream_pos;
+        cur_pic->cur_bistream_pos += sz;
+    }
+}
+
+void mp2v_decoder_c::decode_unit(uint8_t* start_code_ptr) {
+    BITSTREAM((&m_bs));
+    bit_idx = 32;
+    bit_ptr = (uint32_t*)(start_code_ptr + 4);
+    bit_buf = (uint64_t)bswap_32(*((uint32_t*)start_code_ptr));
+    uint8_t start_code = *(start_code_ptr + 3);
+    switch (start_code) {
+    case sequence_header_code: parse_sequence_header(&m_bs, m_sequence_header); break;
+    case extension_start_code: decode_extension_data(cur_pic);                  break;
+    case group_start_code:     parse_group_of_pictures_header(&m_bs, *(m_group_of_pictures_header = new group_of_pictures_header_t)); break;
+    case picture_start_code:
+    {
+        static int pic_num = 0;
+        ++pic_num;
+    }
+    new_picture = true;
+    if (cur_pic) out_pic(cur_pic);
+    cur_pic = new_pic();
+    parse_picture_header(&m_bs, cur_pic->m_picture_header);
+    if (cur_pic->m_picture_header.picture_coding_type == picture_coding_type_pred || cur_pic->m_picture_header.picture_coding_type == picture_coding_type_intra) {
+        cur_pic->add_dependency(ref_frames[1]);
+        ref_frames[0] = ref_frames[1];
+        ref_frames[1] = cur_pic;
+    }
+    else
+        for (auto* pic : ref_frames) cur_pic->add_dependency(pic);
+    break;
+    case user_data_start_code: decode_user_data(); break;
+    case sequence_error_code:
+    case sequence_end_code: break;
+    default:
+        if ((start_code >= slice_start_code_min) && (start_code <= slice_start_code_max)) {
+            if (new_picture) cur_pic->init();
+#ifdef MP2V_MT
+            auto tsk = new mp2v_slice_task_c();
+            tsk->bs = m_bs;
+            cur_pic->add_slice_task(tsk);
+#else
+            cur_pic->decode_slice(m_bs);
+#endif
+            new_picture = false;
+        }
     }
 }
 

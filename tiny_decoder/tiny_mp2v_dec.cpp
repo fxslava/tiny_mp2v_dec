@@ -55,7 +55,7 @@ int main(int argc, char* argv[])
     if (output_file) {
         FILE* fp = fopen(output_file->c_str(), "wb");
         if (bitstream_file && fp) {
-            mp2v_decoder_c mp2v_decoder({ 1920, 1088, 2, 10, 8, 1024 * 1024, true }, [fp](frame_c* frame) { write_yuv(fp, frame); });
+            mp2v_decoder_c mp2v_decoder({ 1920, 1088, 2, 10, 8, 4 * 1024 * 1024, true }, [fp](frame_c* frame) { write_yuv(fp, frame); });
 
             const auto start = std::chrono::system_clock::now();
 
