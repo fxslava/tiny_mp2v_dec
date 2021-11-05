@@ -192,10 +192,10 @@ void mp2v_picture_c::init() {
     }
     for (int i = 0; i < 64; i++) {
         int j = g_shuffle[pcext.alternate_scan][i];
-        if (m_quant_matrix_extension->load_intra_quantiser_matrix)            quantiser_matrices[0][i] = tmp[0][j];
-        if (m_quant_matrix_extension->load_non_intra_quantiser_matrix)        quantiser_matrices[1][i] = tmp[1][j];
-        if (m_quant_matrix_extension->load_chroma_intra_quantiser_matrix)     quantiser_matrices[2][i] = tmp[2][j];
-        if (m_quant_matrix_extension->load_chroma_non_intra_quantiser_matrix) quantiser_matrices[3][i] = tmp[3][j];
+        quantiser_matrices[0][i] = tmp[0][j];
+        quantiser_matrices[1][i] = tmp[1][j];
+        quantiser_matrices[2][i] = tmp[2][j];
+        quantiser_matrices[3][i] = tmp[3][j];
     }
 
     auto sh = m_dec->m_sequence_header;
