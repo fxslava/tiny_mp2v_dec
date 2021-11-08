@@ -46,6 +46,7 @@ frame_c::frame_c(int width, int height, int chroma_format) {
     m_width [0] = width;
     m_height[0] = height;
 
+    m_chroma_format = chroma_format;
     switch (chroma_format) {
     case chroma_format_420:
         m_stride[1] = ((m_stride[0] >> 1) + CACHE_LINE - 1) & ~(CACHE_LINE - 1);
@@ -74,6 +75,13 @@ frame_c::frame_c(int width, int height, int chroma_format) {
     for (int i = 0; i < 3; i++)
         m_planes[i] = (uint8_t*)aligned_alloc(32, m_height[i] * m_stride[i]);
 #endif
+}
+
+void frame_c::set_display_size(int display_width, int display_height) {
+    m_display_width [0] = display_width;
+    m_display_height[0] = display_height;
+    m_display_width [1] = m_display_width [2] = (m_chroma_format != chroma_format_444) ? display_width >> 1 : display_width;
+    m_display_height[1] = m_display_height[2] = (m_chroma_format != chroma_format_420) ? display_height : display_height >> 1;
 }
 
 frame_c::~frame_c() {
@@ -184,11 +192,14 @@ void mp2v_picture_c::init() {
     }
     for (int i = 0; i < 64; i++) {
         int j = g_shuffle[pcext.alternate_scan][i];
-        if (m_quant_matrix_extension->load_intra_quantiser_matrix)            quantiser_matrices[0][i] = tmp[0][j];
-        if (m_quant_matrix_extension->load_non_intra_quantiser_matrix)        quantiser_matrices[1][i] = tmp[1][j];
-        if (m_quant_matrix_extension->load_chroma_intra_quantiser_matrix)     quantiser_matrices[2][i] = tmp[2][j];
-        if (m_quant_matrix_extension->load_chroma_non_intra_quantiser_matrix) quantiser_matrices[3][i] = tmp[3][j];
+        quantiser_matrices[0][i] = tmp[0][j];
+        quantiser_matrices[1][i] = tmp[1][j];
+        quantiser_matrices[2][i] = tmp[2][j];
+        quantiser_matrices[3][i] = tmp[3][j];
     }
+
+    auto sh = m_dec->m_sequence_header;
+    m_frame->set_display_size(sh.horizontal_size_value, sh.vertical_size_value);
 }
 
 bool mp2v_decoder_c::decode_user_data() {
@@ -241,10 +252,12 @@ bool mp2v_decoder_c::decode_extension_data(mp2v_picture_c* pic) {
     return true;
 }
 
-void mp2v_decoder_c::flush(mp2v_picture_c* cur_pic) {
+void mp2v_decoder_c::flush() {
 #ifdef MP2V_MT
-    if (cur_pic)
+    if (cur_pic) {
         task_queue->add_task(cur_pic, cur_pic->m_picture_header.picture_coding_type == picture_coding_type_bidir);
+        cur_pic = nullptr;
+    }
     task_queue->kill();
 #else
     if (ref_frames[1])
@@ -275,57 +288,89 @@ void mp2v_decoder_c::out_pic(mp2v_picture_c* cur_pic) {
 #endif
 }
 
-bool mp2v_decoder_c::decode(uint8_t* buffer, int len) {
-
-    m_bs.set_bitstream_buffer(buffer);
-    bool new_picture = false, sequence_end = false;
-    mp2v_picture_c* cur_pic = nullptr;
+void mp2v_decoder_c::decode(uint8_t* buffer, int len) {
+    bool new_buffer = true;
 
     scan_start_codes(buffer, buffer + len, [&](uint8_t* ptr) {
-        BITSTREAM((&m_bs));
-        bit_idx = 32;
-        bit_ptr = (uint32_t*)(ptr + 4);
-        bit_buf = (uint64_t)bswap_32(*((uint32_t*)ptr));
-        uint8_t start_code = *(ptr + 3);
-        switch (start_code) {
-        case sequence_header_code: parse_sequence_header(&m_bs, m_sequence_header); break;
-        case extension_start_code: decode_extension_data(cur_pic);                  break;
-        case group_start_code:     parse_group_of_pictures_header(&m_bs, *(m_group_of_pictures_header = new group_of_pictures_header_t)); break;
-        case picture_start_code:
-            new_picture = true;
-            if (cur_pic) out_pic(cur_pic);
-            cur_pic = new_pic();
-            parse_picture_header(&m_bs, cur_pic->m_picture_header);
-            if (cur_pic->m_picture_header.picture_coding_type == picture_coding_type_pred || cur_pic->m_picture_header.picture_coding_type == picture_coding_type_intra) {
-                cur_pic->add_dependency(ref_frames[1]);
-                ref_frames[0] = ref_frames[1];
-                ref_frames[1] = cur_pic;
-            } else
-                for (auto* pic : ref_frames) cur_pic->add_dependency(pic);
-            break;
-        case user_data_start_code: decode_user_data(); break;
-        case sequence_error_code:
-        case sequence_end_code:
-            flush(cur_pic);
-            sequence_end = true;
-            break;
-        default:
-            if ((start_code >= slice_start_code_min) && (start_code <= slice_start_code_max)) {
-                if (new_picture) cur_pic->init();
-#ifdef MP2V_MT
-                auto tsk = new mp2v_slice_task_c();
-                tsk->bs = m_bs;
-                cur_pic->add_slice_task(tsk);
-#else
-                cur_pic->decode_slice(m_bs);
-#endif
-                new_picture = false;
+        if (prev_start_code) {
+            last_start_code = ptr;
+            uint8_t* p = nullptr;
+            if (cur_pic) {
+                p = cur_pic->cur_bistream_pos;
+                size_t sz = new_buffer ? last_start_code - buffer : last_start_code - prev_start_code;
+                memcpy(p, new_buffer ? buffer : prev_start_code, sz);
+                cur_pic->cur_bistream_pos += sz;
+                cur_pic->cur_bistream_pos[0] = 0;
+                cur_pic->cur_bistream_pos[1] = 0;
+                cur_pic->cur_bistream_pos[2] = 1;
+                if (!(cur_pic->last_start_code != nullptr && new_buffer)) cur_pic->last_start_code = p;
+                decode_unit(cur_pic->last_start_code);
+            }
+            else
+                decode_unit(prev_start_code);
+
+            if (new_buffer) {
+                if (p[-1] == 0 && p[0] == 0 && p[1] == 1)
+                    decode_unit(&p[-1]);
+                if (p[-2] == 0 && p[-1] == 0 && p[0] == 1)
+                    decode_unit(&p[-2]);
             }
         }
+        prev_start_code = ptr;
+        new_buffer = false;
         });
-    if (!sequence_end)
-        flush(cur_pic);
-    return true;
+
+    if (cur_pic) {
+        size_t sz = buffer + len - last_start_code;
+        memcpy(cur_pic->cur_bistream_pos, prev_start_code, sz);
+        cur_pic->last_start_code = cur_pic->cur_bistream_pos;
+        cur_pic->cur_bistream_pos += sz;
+    }
+}
+
+void mp2v_decoder_c::decode_unit(uint8_t* start_code_ptr) {
+    BITSTREAM((&m_bs));
+    bit_idx = 32;
+    bit_ptr = (uint32_t*)(start_code_ptr + 4);
+    bit_buf = (uint64_t)bswap_32(*((uint32_t*)start_code_ptr));
+    uint8_t start_code = *(start_code_ptr + 3);
+    switch (start_code) {
+    case sequence_header_code: parse_sequence_header(&m_bs, m_sequence_header); break;
+    case extension_start_code: decode_extension_data(cur_pic);                  break;
+    case group_start_code:     parse_group_of_pictures_header(&m_bs, *(m_group_of_pictures_header = new group_of_pictures_header_t)); break;
+    case picture_start_code:
+    {
+        static int pic_num = 0;
+        ++pic_num;
+    }
+    new_picture = true;
+    if (cur_pic) out_pic(cur_pic);
+    cur_pic = new_pic();
+    parse_picture_header(&m_bs, cur_pic->m_picture_header);
+    if (cur_pic->m_picture_header.picture_coding_type == picture_coding_type_pred || cur_pic->m_picture_header.picture_coding_type == picture_coding_type_intra) {
+        cur_pic->add_dependency(ref_frames[1]);
+        ref_frames[0] = ref_frames[1];
+        ref_frames[1] = cur_pic;
+    }
+    else
+        for (auto* pic : ref_frames) cur_pic->add_dependency(pic);
+    break;
+    case user_data_start_code: decode_user_data(); break;
+    case sequence_error_code:
+    case sequence_end_code: break;
+    default:
+        if ((start_code >= slice_start_code_min) && (start_code <= slice_start_code_max)) {
+            if (new_picture) cur_pic->init();
+#ifdef MP2V_MT
+            auto tsk = new mp2v_slice_task_c();
+            tsk->bs = m_bs;
+            cur_pic->add_slice_task(tsk);
+#else
+            cur_pic->decode_slice(m_bs);
+#endif
+            new_picture = false;
+        }
+    }
 }
 
 void mp2v_slice_task_c::decode() {
@@ -388,7 +433,7 @@ bool mp2v_decoder_c::decoder_init(const decoder_config_t &config, std::function<
 
 #ifdef MP2V_MT
     task_queue = new task_queue_c(num_pics, [&]() -> picture_task_c* {
-        return new mp2v_picture_c(this, new frame_c(width, height, chroma_format));
+        return new mp2v_picture_c(this, new frame_c(width, height, chroma_format), config.bitstream_chunk_size);
         });
     for (int i = 0; i < config.num_threads; i++)
         thread_pool[i] = new std::thread(threadpool_task_scheduler, this);

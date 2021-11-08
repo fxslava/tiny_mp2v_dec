@@ -18,6 +18,7 @@
 constexpr int MAX_NUM_THREADS = 256;
 constexpr int MAX_B_FRAMES = 8;
 constexpr int CACHE_LINE = 64;
+constexpr int DEFAULT_BITSTREAM_BUFFER_SIZE = 1024*1024;
 
 class mp2v_picture_c;
 class mp2v_decoder_c;
@@ -28,6 +29,7 @@ struct decoder_config_t {
     int chroma_format;
     int pictures_pool_size;
     int num_threads;
+    int bitstream_chunk_size;
     bool reordering;
 };
 
@@ -39,11 +41,15 @@ public:
 
     uint8_t* get_planes (int plane_idx) { return m_planes[plane_idx]; }
     int      get_strides(int plane_idx) { return m_stride[plane_idx]; }
-    int      get_width  (int plane_idx) { return m_width [plane_idx]; }
-    int      get_height (int plane_idx) { return m_height[plane_idx]; }
+    int      get_display_width  (int plane_idx) { return m_display_width [plane_idx]; }
+    int      get_display_height (int plane_idx) { return m_display_height[plane_idx]; }
+    void     set_display_size   (int display_width, int display_height);
 private:
+    int m_chroma_format = chroma_format_420;
     uint32_t m_width [3] = { 0 };
     uint32_t m_height[3] = { 0 };
+    uint32_t m_display_width [3] = { 0 };
+    uint32_t m_display_height[3] = { 0 };
     uint32_t m_stride[3] = { 0 };
     uint8_t* m_planes[3] = { 0 };
 };
@@ -55,14 +61,26 @@ public:
 };
 
 class mp2v_picture_c : public picture_task_c {
+    friend class mp2v_decoder_c;
 public:
-    mp2v_picture_c(mp2v_decoder_c* decoder, frame_c* frame) : m_dec(decoder), m_frame(frame) {};
+    mp2v_picture_c(mp2v_decoder_c* decoder, frame_c* frame, int bitstream_buffer_size = DEFAULT_BITSTREAM_BUFFER_SIZE) : 
+        m_dec(decoder), m_frame(frame), bitstream_buffer(bitstream_buffer_size) {
+        cur_bistream_pos = &bitstream_buffer[0];
+    };
     void init();
     void attach(frame_c* frame) { m_frame = frame; }
     bool decode_slice(bitstream_reader_c bs);
     frame_c* get_frame() { return m_frame; }
+    void reset() {
+        picture_task_c::reset();
+        cur_bistream_pos = &bitstream_buffer[0];
+        last_start_code = nullptr;
+    }
 
 private:
+    uint8_t* last_start_code = nullptr;
+    uint8_t* cur_bistream_pos = nullptr;
+    std::vector<uint8_t> bitstream_buffer;
     mp2v_decoder_c* m_dec;
     uint8_t quantiser_matrices[4][64];
     parse_macroblock_func_t m_parse_macroblock_func = nullptr;
@@ -96,8 +114,9 @@ public:
     };
     ~mp2v_decoder_c();
     bool decoder_init(const decoder_config_t& config, std::function<void(frame_c*)> renderer);
-    bool decode(uint8_t* buffer, int len);
-    void flush(mp2v_picture_c* cur_pic = nullptr);
+    void decode(uint8_t* buffer, int len);
+    void decode_unit(uint8_t* start_code_ptr);
+    void flush();
 
 protected:
     bool decode_user_data();
@@ -119,6 +138,11 @@ protected:
     ThreadSafeQ<mp2v_picture_c*> m_free_pics;
     std::vector<mp2v_picture_c*> m_pictures_pool;
 #endif
+    // Decoder state variables
+    uint8_t* prev_start_code = nullptr;
+    uint8_t* last_start_code = nullptr;
+    mp2v_picture_c* cur_pic = nullptr;
+    bool new_picture = false;
 
 public:
     // headers & user data

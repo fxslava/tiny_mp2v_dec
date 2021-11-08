@@ -87,6 +87,7 @@ bool picture_task_c::slice_done() {
         pic_done = (done_slices_ >= slices_tasks.size());
     }
     if (pic_done) {
+        on_completed();
         for (int i = 0; i < num_dependencies; i++)
             if (dependencies[i])
                 dependencies[i]->release_waiter();
